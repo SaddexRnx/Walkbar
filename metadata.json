@@ -1,0 +1,7 @@
+{
+  "name": "Walkbar",
+  "description": "Walkbar places tiny synchronized animated characters walking along native Instagram Reel progress bars with high quality local export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
