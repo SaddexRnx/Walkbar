@@ -92,6 +92,8 @@ object WalkbarVideoExporter {
       val inputSurface = encoder.createInputSurface()
       encoder.start()
 
+      val eglEncoder = EglSurfaceEncoder(inputSurface)
+
       // 2. Setup Audio Extraction if present
       val audioExtractor = if (metadata.hasAudio) MediaExtractor() else null
       var audioFormat: MediaFormat? = null
@@ -129,6 +131,9 @@ object WalkbarVideoExporter {
       val srcRect = Rect()
       val dstRect = Rect(0, 0, width, height)
 
+      val compositeBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+      val canvas = Canvas(compositeBitmap)
+
       // Start processing frames
       for (frameIndex in 0 until totalFrames) {
         if (!coroutineContext.isActive) {
@@ -137,6 +142,7 @@ object WalkbarVideoExporter {
 
         val frameTimestampUs = frameIndex * frameIntervalUs
         val currentMs = frameTimestampUs / 1000L
+        val ptsNs = frameTimestampUs * 1000L
 
         // Retrieve source video frame at exact timestamp
         val sourceBitmap: Bitmap? = try {
@@ -154,50 +160,45 @@ object WalkbarVideoExporter {
           null
         }
 
-        // Draw onto the encoder input surface
-        val canvas = inputSurface.lockHardwareCanvas()
-        try {
-          // Clear
-          canvas.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR)
+        // Draw onto the composite bitmap
+        canvas.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR)
 
-          // 1. Draw source video frame
-          if (sourceBitmap != null) {
-            srcRect.set(0, 0, sourceBitmap.width, sourceBitmap.height)
-            canvas.drawBitmap(sourceBitmap, srcRect, dstRect, paint)
-          } else {
-            // Fallback background
-            canvas.drawColor(Color.rgb(18, 20, 24))
-          }
-
-          // 2. Composite character overlay (ONLY character, NEVER progress bar)
-          val pixelX = WalkCycleMath.calculatePixelX(currentMs, durationMs, config, width.toFloat())
-          val pixelY = WalkCycleMath.calculatePixelY(config, height.toFloat())
-          val phase = WalkCycleMath.calculatePhase(
-            currentTimeMs = currentMs,
-            behavior = config.behavior,
-            isPlaying = true,
-            durationMs = durationMs,
-            config = config,
-            canvasWidth = width.toFloat(),
-            canvasHeight = height.toFloat()
-          )
-
-          CharacterRenderer.drawCharacter(
-            canvas = canvas,
-            character = character,
-            behavior = config.behavior,
-            centerX = pixelX,
-            bottomY = pixelY,
-            size = charSize,
-            phase = phase,
-            facingRight = config.effectiveFacingRight,
-            currentTimeMs = currentMs
-          )
-        } finally {
-          inputSurface.unlockCanvasAndPost(canvas)
+        // 1. Draw source video frame
+        if (sourceBitmap != null) {
+          srcRect.set(0, 0, sourceBitmap.width, sourceBitmap.height)
+          canvas.drawBitmap(sourceBitmap, srcRect, dstRect, paint)
+          sourceBitmap.recycle()
+        } else {
+          canvas.drawColor(Color.rgb(18, 20, 24))
         }
 
-        sourceBitmap?.recycle()
+        // 2. Composite character overlay (ONLY character, NEVER progress bar)
+        val pixelX = WalkCycleMath.calculatePixelX(currentMs, durationMs, config, width.toFloat())
+        val pixelY = WalkCycleMath.calculatePixelY(config, height.toFloat())
+        val phase = WalkCycleMath.calculatePhase(
+          currentTimeMs = currentMs,
+          behavior = config.behavior,
+          isPlaying = true,
+          durationMs = durationMs,
+          config = config,
+          canvasWidth = width.toFloat(),
+          canvasHeight = height.toFloat()
+        )
+
+        CharacterRenderer.drawCharacter(
+          canvas = canvas,
+          character = character,
+          behavior = config.behavior,
+          centerX = pixelX,
+          bottomY = pixelY,
+          size = charSize,
+          phase = phase,
+          facingRight = config.effectiveFacingRight,
+          currentTimeMs = currentMs
+        )
+
+        // Render frame to encoder input surface with deterministic PTS timestamp
+        eglEncoder.renderBitmapFrame(compositeBitmap, ptsNs, width, height)
 
         // Drain encoded packets
         videoTrackIndex = drainEncoder(
@@ -226,6 +227,8 @@ object WalkbarVideoExporter {
           )
         )
       }
+
+      compositeBitmap.recycle()
 
       // End of Stream
       encoder.signalEndOfInputStream()
@@ -311,6 +314,7 @@ object WalkbarVideoExporter {
 
       // Cleanup encoder, extractor, and muxer
       try {
+        eglEncoder.release()
         encoder.stop()
         encoder.release()
         inputSurface.release()

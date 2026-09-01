@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.testTag
@@ -62,12 +62,12 @@ import com.example.ui.theme.AccentIndigoMuted
 import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkSurfaceCard
 import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
 /**
- * 'Sleek Interface' Character Picker.
- * Displays a category filter row, a scrollable carousel of character cards,
- * and an immediate live preview displaying the character's walk-cycle state.
+ * Compact, sleek Character Picker designed specifically for the bottom controls sheet.
+ * Takes minimal vertical height so the video viewport above stays large and prominent.
  */
 @Composable
 fun SleekCharacterPicker(
@@ -102,60 +102,68 @@ fun SleekCharacterPicker(
       .fillMaxWidth()
       .testTag("sleek_character_picker")
   ) {
-    // 1. Live Interactive Walk Preview Bar
-    LiveWalkPreviewBanner(
-      character = currentCharacter,
-      behavior = behavior,
-      currentTimeMs = animTimeMs.toLong()
-    )
-
-    Spacer(modifier = Modifier.height(10.dp))
-
-    // 2. Category Filter Pills
-    LazyRow(
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 2.dp, vertical = 2.dp)
+    // 1. Compact Category Filter Row + Selected Character Badge
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween,
+      modifier = Modifier.fillMaxWidth()
     ) {
-      items(ObjectCategory.entries.toTypedArray(), key = { it.name }) { cat ->
-        val isCatSelected = selectedCategory == cat
-        FilterChip(
-          selected = isCatSelected,
-          onClick = { selectedCategory = cat },
-          shape = RoundedCornerShape(10.dp),
-          label = {
+      LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.weight(1f)
+      ) {
+        items(ObjectCategory.entries.toTypedArray(), key = { it.name }) { cat ->
+          val isCatSelected = selectedCategory == cat
+          Surface(
+            color = if (isCatSelected) AccentIndigo else DarkSurfaceCard,
+            shape = RoundedCornerShape(8.dp),
+            border = androidx.compose.foundation.BorderStroke(
+              1.dp,
+              if (isCatSelected) AccentIndigoLight else DarkBorder
+            ),
+            modifier = Modifier
+              .clickable { selectedCategory = cat }
+              .testTag("category_chip_${cat.name}")
+          ) {
             Text(
               text = "${cat.iconEmoji} ${cat.displayName}",
-              fontSize = 11.5.sp,
-              fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Normal
+              fontSize = 11.sp,
+              fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Medium,
+              color = if (isCatSelected) Color.White else TextSecondary,
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
             )
-          },
-          colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = AccentIndigo,
-            selectedLabelColor = Color.White,
-            containerColor = DarkSurfaceCard,
-            labelColor = TextSecondary
-          ),
-          border = FilterChipDefaults.filterChipBorder(
-            borderColor = DarkBorder,
-            selectedBorderColor = AccentIndigo,
-            enabled = true,
-            selected = isCatSelected
-          ),
-          modifier = Modifier.testTag("category_chip_${cat.name}")
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.width(6.dp))
+
+      // Active character pill
+      Surface(
+        color = AccentIndigoMuted,
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, AccentIndigoLight)
+      ) {
+        Text(
+          text = currentCharacter.name,
+          fontSize = 10.5.sp,
+          fontWeight = FontWeight.Bold,
+          color = AccentIndigoLight,
+          modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
         )
       }
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
-    // 3. Scrollable Row of Character Icons
+    // 2. Compact Scrollable Row of Character Icons
     LazyRow(
-      horizontalArrangement = Arrangement.spacedBy(10.dp),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
       modifier = Modifier
         .fillMaxWidth()
-        .padding(vertical = 4.dp)
+        .padding(vertical = 2.dp)
     ) {
       items(filteredCharacters, key = { it.id }) { char ->
         val isSelected = char.id == selectedCharacterId
@@ -172,127 +180,7 @@ fun SleekCharacterPicker(
 }
 
 /**
- * Top active preview banner demonstrating the selected character's immediate walk-cycle.
- */
-@Composable
-private fun LiveWalkPreviewBanner(
-  character: CharacterModel,
-  behavior: AnimationBehavior,
-  currentTimeMs: Long,
-  modifier: Modifier = Modifier
-) {
-  Box(
-    modifier = modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(16.dp))
-      .background(
-        Brush.horizontalGradient(
-          colors = listOf(
-            Color(0xFF1E1B4B),
-            Color(0xFF0F172A),
-            Color(0xFF1E293B)
-          )
-        )
-      )
-      .border(1.dp, Color(0x446366F1), RoundedCornerShape(16.dp))
-      .padding(horizontal = 14.dp, vertical = 10.dp)
-  ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      modifier = Modifier.fillMaxWidth()
-    ) {
-      // Live Animated Preview Window
-      Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-          .size(54.dp)
-          .clip(RoundedCornerShape(12.dp))
-          .background(Color(0x33000000))
-          .border(1.dp, Color(0x336366F1), RoundedCornerShape(12.dp))
-      ) {
-        Canvas(modifier = Modifier.size(46.dp)) {
-          val w = size.width
-          val h = size.height
-          val charSize = h * 0.76f
-          val stepMs = if (behavior.stepDurationMs > 0L) behavior.stepDurationMs else 480L
-          val phase = ((currentTimeMs % stepMs).toFloat() / stepMs.toFloat())
-
-          drawContext.canvas.nativeCanvas.let { canvas ->
-            CharacterRenderer.drawCharacter(
-              canvas = canvas,
-              character = character,
-              behavior = behavior,
-              centerX = w * 0.5f,
-              bottomY = h * 0.88f,
-              size = charSize,
-              phase = phase,
-              facingRight = true,
-              currentTimeMs = currentTimeMs
-            )
-          }
-        }
-      }
-
-      Spacer(modifier = Modifier.width(12.dp))
-
-      // Character Info & Attribution
-      Column(modifier = Modifier.weight(1f)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = character.name,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Box(
-            modifier = Modifier
-              .clip(RoundedCornerShape(6.dp))
-              .background(AccentIndigoMuted)
-              .padding(horizontal = 5.dp, vertical = 1.dp)
-          ) {
-            Text(
-              text = character.category.displayName,
-              fontSize = 9.5.sp,
-              fontWeight = FontWeight.SemiBold,
-              color = AccentIndigoLight
-            )
-          }
-        }
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        Text(
-          text = character.description,
-          fontSize = 11.sp,
-          color = TextSecondary,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(3.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = "By ${character.creator}",
-            fontSize = 10.sp,
-            color = TextMuted
-          )
-          Text(
-            text = " • ${character.license}",
-            fontSize = 9.5.sp,
-            color = TextMuted
-          )
-        }
-      }
-    }
-  }
-}
-
-/**
- * Individual sleek character item in the carousel with live animated canvas preview.
+ * Individual compact character card with live animated walk sprite.
  */
 @Composable
 fun SleekCharacterCard(
@@ -309,40 +197,35 @@ fun SleekCharacterCard(
     label = "cardScale"
   )
 
-  val borderColor by animateColorAsState(
-    targetValue = if (isSelected) AccentIndigo else Color.Transparent,
-    animationSpec = tween(200, easing = FastOutSlowInEasing),
-    label = "borderColor"
-  )
-
   val backgroundColor = if (isSelected) AccentIndigoMuted else DarkSurfaceCard
 
   Column(
     horizontalAlignment = Alignment.CenterHorizontally,
     modifier = modifier
-      .width(70.dp)
+      .width(58.dp)
       .scale(cardScale)
-      .alpha(if (isSelected) 1f else 0.68f)
+      .alpha(if (isSelected) 1f else 0.72f)
       .clickable(onClick = onClick)
       .testTag("sleek_character_card_${character.id}")
   ) {
     Box(
       contentAlignment = Alignment.Center,
       modifier = Modifier
-        .size(56.dp)
-        .clip(RoundedCornerShape(16.dp))
+        .size(46.dp)
+        .clip(RoundedCornerShape(12.dp))
         .background(backgroundColor)
         .border(
-          width = if (isSelected) 2.dp else 1.dp,
+          width = if (isSelected) 1.5.dp else 1.dp,
           color = if (isSelected) AccentIndigo else DarkBorder,
-          shape = RoundedCornerShape(16.dp)
+          shape = RoundedCornerShape(12.dp)
         )
     ) {
-      Canvas(modifier = Modifier.size(44.dp)) {
+      Canvas(modifier = Modifier.size(36.dp)) {
         val w = size.width
         val h = size.height
-        val charSize = h * 0.72f
-        val phase = ((currentTimeMs % behavior.stepDurationMs).toFloat() / behavior.stepDurationMs.toFloat())
+        val charSize = h * 0.76f
+        val stepMs = if (behavior.stepDurationMs > 0L) behavior.stepDurationMs else 480L
+        val phase = ((currentTimeMs % stepMs).toFloat() / stepMs.toFloat())
 
         drawContext.canvas.nativeCanvas.let { canvas ->
           CharacterRenderer.drawCharacter(
@@ -350,7 +233,7 @@ fun SleekCharacterCard(
             character = character,
             behavior = behavior,
             centerX = w * 0.5f,
-            bottomY = h * 0.86f,
+            bottomY = h * 0.88f,
             size = charSize,
             phase = phase,
             facingRight = true,
@@ -365,23 +248,23 @@ fun SleekCharacterCard(
         modifier = Modifier
           .align(Alignment.TopEnd)
           .offset(x = (-2).dp, y = 2.dp)
-          .size(15.dp)
+          .size(13.dp)
           .clip(CircleShape)
           .background(Color(0xCC1E1B4B))
       ) {
         Text(
           text = character.category.iconEmoji,
-          fontSize = 8.5.sp,
+          fontSize = 7.5.sp,
           textAlign = TextAlign.Center
         )
       }
     }
 
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(2.dp))
 
     Text(
       text = character.name,
-      fontSize = 10.sp,
+      fontSize = 9.5.sp,
       fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
       color = if (isSelected) AccentIndigoLight else TextSecondary,
       maxLines = 1,

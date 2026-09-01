@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -269,9 +270,9 @@ fun EditorScreen(
       contentAlignment = Alignment.Center,
       modifier = Modifier
         .fillMaxWidth()
-        .weight(1.4f)
+        .weight(1f)
         .background(Color(0xFF000000))
-        .padding(horizontal = if (isSplitScreenMode) 10.dp else 16.dp, vertical = 4.dp)
+        .padding(horizontal = if (isSplitScreenMode) 10.dp else 16.dp, vertical = 2.dp)
     ) {
       if (isSplitScreenMode) {
         // ─── DUAL SPLIT-SCREEN VIEW (ORIGINAL ON TOP, OVERLAY ON BOTTOM) ───
@@ -596,24 +597,26 @@ fun EditorScreen(
       }
     }
 
-    // ─── 4. SLEEK BOTTOM CONTROLS PANEL ───
+    // ─── 4. SLEEK COMPACT BOTTOM CONTROLS PANEL ───
     Surface(
       color = DarkSurfaceElevated,
-      shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+      shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
       border = BorderStroke(1.dp, DarkBorder),
-      modifier = Modifier.fillMaxWidth()
+      modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(max = 190.dp)
     ) {
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(top = 8.dp, bottom = 12.dp)
+          .padding(top = 4.dp, bottom = 8.dp)
       ) {
         // Tab Headers
         ScrollableTabRow(
           selectedTabIndex = selectedTab,
           containerColor = DarkSurfaceElevated,
           contentColor = AccentIndigo,
-          edgePadding = 16.dp,
+          edgePadding = 12.dp,
           indicator = { tabPositions ->
             TabRowDefaults.SecondaryIndicator(
               Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
@@ -630,7 +633,7 @@ fun EditorScreen(
               text = {
                 Text(
                   text = title,
-                  fontSize = 12.5.sp,
+                  fontSize = 12.sp,
                   fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
                   color = if (selectedTab == index) TextPrimary else TextMuted
                 )
@@ -643,11 +646,11 @@ fun EditorScreen(
         Box(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
         ) {
           when (selectedTab) {
             0 -> {
-              // TAB 1: Sleek Character Picker with Category Filtering & Instant Walk Preview
+              // TAB 1: Sleek Character Picker with Category Filtering
               SleekCharacterPicker(
                 selectedCharacterId = overlayConfig.characterId,
                 behavior = overlayConfig.behavior,
@@ -656,7 +659,7 @@ fun EditorScreen(
             }
 
             1 -> {
-              // TAB 2: Movement & Dynamic Stride Duration Sync Logic Layer
+              // TAB 2: Movement & Locomotion Gait selector
               val effectiveStepMs = WalkCycleMath.getEffectiveStepDurationMs(
                 behavior = overlayConfig.behavior,
                 durationMs = effectiveDurationMs,
@@ -665,25 +668,11 @@ fun EditorScreen(
                 canvasHeight = metadata.effectiveHeight.toFloat()
               )
               val cadenceHz = WalkCycleMath.calculateCadenceStepsPerSecond(effectiveStepMs)
-              val velocityPxSec = WalkCycleMath.calculateHorizontalVelocityPxPerSec(
-                durationMs = effectiveDurationMs,
-                config = overlayConfig,
-                canvasWidth = metadata.effectiveWidth.toFloat()
-              )
 
               Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
               ) {
-                // Behavior selector chips
-                Text(
-                  text = "ANIMATION BEHAVIOR & GAIT",
-                  fontSize = 10.sp,
-                  fontWeight = FontWeight.Bold,
-                  color = TextMuted,
-                  letterSpacing = 0.5.sp
-                )
-
                 LazyRow(
                   horizontalArrangement = Arrangement.spacedBy(6.dp),
                   modifier = Modifier.fillMaxWidth()
@@ -696,11 +685,11 @@ fun EditorScreen(
                       label = {
                         Text(
                           text = behavior.displayName,
-                          fontSize = 11.5.sp,
+                          fontSize = 11.sp,
                           fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
                       },
-                      shape = RoundedCornerShape(10.dp),
+                      shape = RoundedCornerShape(8.dp),
                       leadingIcon = {
                         val icon = when (behavior) {
                           AnimationBehavior.PACE_SYNC -> Icons.Default.Sync
@@ -710,7 +699,7 @@ fun EditorScreen(
                           AnimationBehavior.SPRINT -> Icons.Default.FastForward
                           AnimationBehavior.HOP -> Icons.Default.Pets
                         }
-                        Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
                       },
                       colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = AccentIndigo,
@@ -729,90 +718,37 @@ fun EditorScreen(
                   }
                 }
 
-                // Dynamic Logic Layer Telemetry Card
-                Card(
-                  colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-                  shape = RoundedCornerShape(12.dp),
-                  border = BorderStroke(1.dp, DarkBorder),
-                  modifier = Modifier.fillMaxWidth()
-                ) {
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .padding(horizontal = 12.dp, vertical = 8.dp)
-                  ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                      Text("Stride Cadence", fontSize = 9.sp, color = TextMuted)
-                      Text(
-                        text = String.format("%.1f steps/s", cadenceHz),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AccentIndigoLight
-                      )
-                    }
-
-                    Box(
-                      modifier = Modifier
-                        .width(1.dp)
-                        .height(24.dp)
-                        .background(DarkBorder)
-                    )
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                      Text("Step Cycle", fontSize = 9.sp, color = TextMuted)
-                      Text(
-                        text = "${effectiveStepMs}ms",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                      )
-                    }
-
-                    Box(
-                      modifier = Modifier
-                        .width(1.dp)
-                        .height(24.dp)
-                        .background(DarkBorder)
-                    )
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                      Text("Bar Velocity", fontSize = 9.sp, color = TextMuted)
-                      Text(
-                        text = String.format("%.0f px/s", velocityPxSec),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AccentCyan
-                      )
-                    }
-                  }
-                }
-
-                // Direction Toggle
+                // Stride & Direction summary
                 Row(
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.SpaceBetween,
                   modifier = Modifier.fillMaxWidth()
                 ) {
-                  Text(
-                    text = "Walk Direction",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                  )
+                  Surface(
+                    color = DarkSurfaceCard,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, DarkBorder)
+                  ) {
+                    Text(
+                      text = String.format("⚡ Cadence: %.1f st/s • Step: %dms", cadenceHz, effectiveStepMs),
+                      fontSize = 10.5.sp,
+                      color = TextSecondary,
+                      modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                  }
 
                   FilterChip(
                     selected = overlayConfig.reverseDirection,
                     onClick = onToggleReverseDirection,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     label = {
                       Text(
-                        text = if (overlayConfig.reverseDirection) "Right to Left ⬅" else "Left to Right ➡",
-                        fontSize = 11.5.sp
+                        text = if (overlayConfig.reverseDirection) "Right ➡ Left" else "Left ➡ Right",
+                        fontSize = 10.5.sp
                       )
                     },
                     leadingIcon = {
-                      Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(15.dp))
+                      Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(13.dp))
                     },
                     colors = FilterChipDefaults.filterChipColors(
                       selectedContainerColor = AccentIndigo,
@@ -833,61 +769,22 @@ fun EditorScreen(
             }
 
             2 -> {
-              // TAB 3: Position & Size with Live Real-Time Tuning
-              val scroll = rememberScrollState()
+              // TAB 3: Position & Size with Quick Snap
               Column(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .verticalScroll(scroll)
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth()
               ) {
-                // Size Presets & Scale Slider
+                // Size Scale Slider
                 Row(
                   verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.SpaceBetween,
                   modifier = Modifier.fillMaxWidth()
                 ) {
                   Text(
                     text = "SIZE",
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextMuted,
-                    modifier = Modifier.width(52.dp)
-                  )
-                  Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CharacterSizePreset.entries.forEach { preset ->
-                      FilterChip(
-                        selected = overlayConfig.sizePreset == preset,
-                        onClick = { onSizePresetChanged(preset) },
-                        shape = RoundedCornerShape(10.dp),
-                        label = { Text(preset.label, fontSize = 11.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                          selectedContainerColor = AccentIndigo,
-                          selectedLabelColor = Color.White,
-                          containerColor = DarkSurfaceCard,
-                          labelColor = TextSecondary
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                          borderColor = DarkBorder,
-                          selectedBorderColor = AccentIndigo,
-                          enabled = true,
-                          selected = overlayConfig.sizePreset == preset
-                        )
-                      )
-                    }
-                  }
-                }
-
-                // Fine Scale Slider
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  modifier = Modifier.fillMaxWidth()
-                ) {
-                  Text(
-                    text = "SCALE",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMuted,
-                    modifier = Modifier.width(52.dp)
+                    modifier = Modifier.width(44.dp)
                   )
                   Slider(
                     value = overlayConfig.customScalePercent,
@@ -904,10 +801,10 @@ fun EditorScreen(
                   )
                   Text(
                     text = "${(overlayConfig.customScalePercent * 100).toInt()}%",
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
                     color = TextSecondary,
-                    modifier = Modifier.width(36.dp)
+                    modifier = Modifier.width(32.dp)
                   )
                 }
 
@@ -918,10 +815,10 @@ fun EditorScreen(
                 ) {
                   Text(
                     text = "HEIGHT",
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextMuted,
-                    modifier = Modifier.width(52.dp)
+                    modifier = Modifier.width(44.dp)
                   )
                   Slider(
                     value = overlayConfig.verticalOffsetPercent,
@@ -938,10 +835,10 @@ fun EditorScreen(
                   )
                   Text(
                     text = "${(overlayConfig.verticalOffsetPercent * 100).toInt()}%",
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
                     color = TextSecondary,
-                    modifier = Modifier.width(36.dp)
+                    modifier = Modifier.width(32.dp)
                   )
                 }
 
@@ -952,14 +849,14 @@ fun EditorScreen(
                   modifier = Modifier.fillMaxWidth()
                 ) {
                   Text(
-                    text = "⚡ Snap Presets:",
-                    fontSize = 11.sp,
+                    text = "Snap:",
+                    fontSize = 10.5.sp,
                     color = TextMuted
                   )
-                  Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                  Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                       text = "Standard Scrubber (3.8%)",
-                      fontSize = 11.sp,
+                      fontSize = 10.5.sp,
                       fontWeight = FontWeight.SemiBold,
                       color = AccentIndigoLight,
                       modifier = Modifier
@@ -969,7 +866,7 @@ fun EditorScreen(
                     )
                     Text(
                       text = "Bottom Timeline (1.5%)",
-                      fontSize = 11.sp,
+                      fontSize = 10.5.sp,
                       fontWeight = FontWeight.SemiBold,
                       color = AccentCyan,
                       modifier = Modifier
@@ -983,9 +880,9 @@ fun EditorScreen(
             }
 
             3 -> {
-              // TAB 4: Specs & Local MediaCodec Hardware Save
+              // TAB 4: Specs & Info
               Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
               ) {
                 Row(
@@ -993,131 +890,34 @@ fun EditorScreen(
                   modifier = Modifier.fillMaxWidth()
                 ) {
                   Column(modifier = Modifier.weight(1f)) {
-                    Text("Original Video", fontSize = 10.sp, color = TextMuted)
+                    Text("Original Video", fontSize = 9.5.sp, color = TextMuted)
                     Text(
-                      text = "${metadata.effectiveWidth} × ${metadata.effectiveHeight}",
-                      fontSize = 13.sp,
+                      text = "${metadata.effectiveWidth} × ${metadata.effectiveHeight} • ${metadata.formattedFps}",
+                      fontSize = 12.sp,
                       fontWeight = FontWeight.Bold,
                       color = TextPrimary
-                    )
-                    Text(
-                      text = "${metadata.formattedFps} • ${metadata.formattedBitrate}",
-                      fontSize = 11.sp,
-                      color = TextSecondary
                     )
                   }
 
-                  Box(
-                    modifier = Modifier
-                      .width(1.dp)
-                      .height(36.dp)
-                      .background(DarkBorder)
-                  )
-
-                  Spacer(modifier = Modifier.width(12.dp))
-
                   Column(modifier = Modifier.weight(1f)) {
-                    Text("MediaCodec Export Engine", fontSize = 10.sp, color = AccentIndigoLight)
+                    Text("Hardware Encoder", fontSize = 9.5.sp, color = AccentIndigoLight)
                     Text(
-                      text = "H.264 / AVC • MP4",
-                      fontSize = 13.sp,
+                      text = "H.264 / AVC 30FPS • Audio Synced",
+                      fontSize = 12.sp,
                       fontWeight = FontWeight.Bold,
                       color = TextPrimary
-                    )
-                    Text(
-                      text = "Bit-for-bit Audio Passthrough",
-                      fontSize = 11.sp,
-                      color = TextSecondary
                     )
                   }
                 }
 
                 Text(
-                  text = "Burned character frames are composited directly via hardware surface encoding and saved to your device's Gallery / Movies folder.",
-                  fontSize = 11.sp,
+                  text = "Burned character frames are composited directly via hardware surface encoding with exact presentation timestamps.",
+                  fontSize = 10.5.sp,
                   color = TextMuted,
-                  lineHeight = 15.sp
+                  lineHeight = 14.sp
                 )
               }
             }
-          }
-        }
-
-        // ─── 5. BOTTOM PRIMARY SAVE & PREVIEW BUTTONS ───
-        Row(
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-        ) {
-          // Play / Pause Toggle
-          Button(
-            onClick = { playerManager.togglePlayPause() },
-            colors = ButtonDefaults.buttonColors(
-              containerColor = DarkSurfaceCard,
-              contentColor = TextPrimary
-            ),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-              .weight(1f)
-              .height(48.dp)
-          ) {
-            Icon(
-              imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-              contentDescription = null,
-              tint = Color.White,
-              modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-              text = if (isPlaying) "Pause" else "Play Preview",
-              fontSize = 13.5.sp,
-              fontWeight = FontWeight.SemiBold
-            )
-          }
-
-          // Split Screen Quick Toggle
-          IconButton(
-            onClick = { isSplitScreenMode = !isSplitScreenMode },
-            modifier = Modifier
-              .size(48.dp)
-              .clip(RoundedCornerShape(16.dp))
-              .background(if (isSplitScreenMode) AccentIndigoMuted else DarkSurfaceCard)
-              .border(1.dp, if (isSplitScreenMode) AccentIndigo else DarkBorder, RoundedCornerShape(16.dp))
-          ) {
-            Icon(
-              imageVector = if (isSplitScreenMode) Icons.Default.Fullscreen else Icons.Default.VerticalSplit,
-              contentDescription = "Toggle Split Screen",
-              tint = if (isSplitScreenMode) AccentIndigoLight else TextSecondary,
-              modifier = Modifier.size(20.dp)
-            )
-          }
-
-          // Main 'Save Video' Button
-          Button(
-            onClick = onExportClicked,
-            colors = ButtonDefaults.buttonColors(
-              containerColor = AccentIndigo,
-              contentColor = Color.White
-            ),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-              .weight(1.3f)
-              .height(48.dp)
-              .testTag("save_video_action_button")
-          ) {
-            Icon(
-              imageVector = Icons.Default.Save,
-              contentDescription = null,
-              tint = Color.White,
-              modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-              text = "Save Video",
-              fontSize = 14.sp,
-              fontWeight = FontWeight.Bold
-            )
           }
         }
       }
