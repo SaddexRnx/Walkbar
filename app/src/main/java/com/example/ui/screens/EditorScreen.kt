@@ -4,11 +4,16 @@ package com.example.ui.screens
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,21 +36,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -81,11 +93,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,10 +114,12 @@ import com.example.model.AnimationBehavior
 import com.example.model.CharacterOverlayConfig
 import com.example.model.CharacterSizePreset
 import com.example.model.ExportFpsOption
+import com.example.model.SocialPlatform
+import com.example.model.VideoFramingMode
 import com.example.model.VideoMetadata
 import com.example.player.WalkbarPlayerManager
 import com.example.ui.components.AboutAppSheet
-import com.example.ui.components.InstagramOverlayGuide
+import com.example.ui.components.PlatformOverlayGuide
 import com.example.ui.components.SleekCharacterPicker
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
@@ -126,6 +143,9 @@ fun EditorScreen(
   playerManager: WalkbarPlayerManager,
   onCharacterSelected: (String) -> Unit,
   onBehaviorChanged: (AnimationBehavior) -> Unit,
+  onPlatformSelected: (SocialPlatform) -> Unit,
+  onFramingModeChanged: (VideoFramingMode) -> Unit,
+  onAdjustVerticalOffsetDelta: (Float) -> Unit,
   onSizePresetChanged: (CharacterSizePreset) -> Unit,
   onCustomScaleChanged: (Float) -> Unit,
   onVerticalOffsetChanged: (Float) -> Unit,
@@ -151,12 +171,13 @@ fun EditorScreen(
   var selectedTab by remember { mutableIntStateOf(0) }
   var isCleanPreviewMode by remember { mutableStateOf(false) }
   var showAboutSheet by remember { mutableStateOf(false) }
+  var isDraggingPosition by remember { mutableStateOf(false) }
 
   val tabs = listOf(
     "Companion",
+    "Platform & Height",
     "Locomotion & FPS",
-    "Size & Height",
-    "Specs & Engine"
+    "Framing & Specs"
   )
 
   DisposableEffect(Unit) {
@@ -182,9 +203,9 @@ fun EditorScreen(
             letterSpacing = (-0.2).sp
           )
           Text(
-            text = "${selectedCharacter.name} • ${metadata.fileName}",
+            text = "${selectedCharacter.name} • ${overlayConfig.targetPlatform.displayName}",
             fontSize = 11.sp,
-            color = TextSecondary,
+            color = AccentIndigoLight,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
           )
@@ -275,14 +296,14 @@ fun EditorScreen(
       colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
     )
 
-    // ─── 2. VIDEO VIEWPORT ───
+    // ─── 2. VIDEO VIEWPORT WITH DIRECT INTERACTIVE TOUCH DRAGGING ───
     Box(
       contentAlignment = Alignment.Center,
       modifier = Modifier
         .fillMaxWidth()
         .weight(1.05f)
         .background(Color(0xFF000000))
-        .padding(horizontal = 12.dp, vertical = 2.dp)
+        .padding(horizontal = 10.dp, vertical = 2.dp)
     ) {
       BoxWithConstraints(
         contentAlignment = Alignment.Center,
@@ -304,11 +325,34 @@ fun EditorScreen(
             .clip(RoundedCornerShape(20.dp))
             .border(1.dp, DarkBorderSubtle, RoundedCornerShape(20.dp))
             .background(Color(0xFF101014))
-            .clickable(
-              interactionSource = remember { MutableInteractionSource() },
-              indication = null
-            ) {
-              playerManager.togglePlayPause()
+            .pointerInput(Unit) {
+              detectDragGestures(
+                onDragStart = { isDraggingPosition = true },
+                onDragEnd = { isDraggingPosition = false },
+                onDragCancel = { isDraggingPosition = false },
+                onDrag = { change, dragAmount ->
+                  change.consume()
+                  val heightPx = size.height.toFloat()
+                  if (heightPx > 0f) {
+                    val deltaPercent = -dragAmount.y / heightPx
+                    onAdjustVerticalOffsetDelta(deltaPercent)
+                  }
+                }
+              )
+            }
+            .pointerInput(Unit) {
+              detectTapGestures(
+                onTap = { offset ->
+                  val heightPx = size.height.toFloat()
+                  if (heightPx > 0f) {
+                    val touchOffsetPercent = (1f - (offset.y / heightPx)).coerceIn(0f, 0.25f)
+                    onVerticalOffsetChanged(touchOffsetPercent)
+                  }
+                },
+                onDoubleTap = {
+                  playerManager.togglePlayPause()
+                }
+              )
             }
         ) {
           // Media3 ExoPlayer View
@@ -348,17 +392,44 @@ fun EditorScreen(
             }
           }
 
-          // Optional Instagram Reel / Shorts Guide simulation overlay
-          if (overlayConfig.showInstagramPreviewGuide) {
-            InstagramOverlayGuide(
+          // Native Platform Reference Guide Overlay (TikTok, YouTube Shorts, Instagram Reels, FB, etc.)
+          if (overlayConfig.showPlatformGuide) {
+            PlatformOverlayGuide(
+              platform = overlayConfig.targetPlatform,
               progress = currentProgress,
               modifier = Modifier.fillMaxSize()
             )
           }
 
-          // Video Specs Glass Badge
+          // Interactive Dragging Height Indicator Pill
+          if (isDraggingPosition) {
+            Surface(
+              color = Color(0xEE1E293B),
+              shape = RoundedCornerShape(20.dp),
+              border = BorderStroke(1.5.dp, AccentIndigo),
+              modifier = Modifier
+                .align(Alignment.Center)
+                .padding(12.dp)
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+              ) {
+                Icon(Icons.Default.TouchApp, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                  text = "Height: ${(overlayConfig.verticalOffsetPercent * 100).toInt()}% • Drag or Tap to Align",
+                  fontSize = 12.5.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = Color.White
+                )
+              }
+            }
+          }
+
+          // Top Right Platform & Specs Badge
           Surface(
-            color = Color(0x88000000),
+            color = Color(0x99000000),
             shape = RoundedCornerShape(8.dp),
             border = BorderStroke(0.5.dp, Color(0x33FFFFFF)),
             modifier = Modifier
@@ -366,11 +437,11 @@ fun EditorScreen(
               .padding(8.dp)
           ) {
             Text(
-              text = "${metadata.effectiveWidth}×${metadata.effectiveHeight} • ${metadata.formattedFps}",
+              text = "${overlayConfig.targetPlatform.iconEmoji} ${overlayConfig.targetPlatform.displayName} (${(overlayConfig.verticalOffsetPercent * 100).toInt()}%)",
               fontSize = 9.5.sp,
               fontFamily = FontFamily.Monospace,
               fontWeight = FontWeight.Medium,
-              color = TextSecondary,
+              color = AccentCyan,
               modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
             )
           }
@@ -395,7 +466,7 @@ fun EditorScreen(
           }
 
           // Play / Pause center feedback indicator
-          if (!isPlaying) {
+          if (!isPlaying && !isDraggingPosition) {
             Box(
               contentAlignment = Alignment.Center,
               modifier = Modifier
@@ -404,6 +475,7 @@ fun EditorScreen(
                 .clip(CircleShape)
                 .background(Color(0x99000000))
                 .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                .clickable { playerManager.togglePlayPause() }
             ) {
               Icon(
                 imageVector = Icons.Default.PlayArrow,
@@ -615,8 +687,226 @@ fun EditorScreen(
               }
             }
 
-            // ─── TAB 1: MOVEMENT & LOCOMOTION GAIT & EXPORT FPS ───
+            // ─── TAB 1: TARGET PLATFORM & HEIGHT ALIGNMENT ───
             1 -> {
+              Text(
+                text = "TARGET SOCIAL PLATFORM PRESETS",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMuted,
+                letterSpacing = 0.6.sp
+              )
+
+              LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                items(SocialPlatform.entries.toTypedArray(), key = { it.id }) { platform ->
+                  val isSelected = overlayConfig.targetPlatform == platform
+                  FilterChip(
+                    selected = isSelected,
+                    onClick = { onPlatformSelected(platform) },
+                    label = {
+                      Text(
+                        text = "${platform.iconEmoji} ${platform.displayName}",
+                        fontSize = 11.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                      )
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                      selectedContainerColor = AccentIndigo,
+                      selectedLabelColor = Color.White,
+                      containerColor = DarkSurfaceCard,
+                      labelColor = TextSecondary
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                      borderColor = DarkBorder,
+                      selectedBorderColor = AccentIndigo,
+                      enabled = true,
+                      selected = isSelected
+                    )
+                  )
+                }
+              }
+
+              // Direct Drag & Height Stepper Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                      Icon(Icons.Default.TouchApp, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(16.dp))
+                      Spacer(modifier = Modifier.width(6.dp))
+                      Text(
+                        text = "Vertical Height Calibration",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                      )
+                    }
+
+                    Text(
+                      text = "${String.format("%.1f", overlayConfig.verticalOffsetPercent * 100)}%",
+                      fontSize = 13.sp,
+                      fontFamily = FontFamily.Monospace,
+                      fontWeight = FontWeight.Bold,
+                      color = AccentCyan
+                    )
+                  }
+
+                  // Precision Stepper Row (+0.1% / -0.1%)
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Button(
+                      onClick = { onAdjustVerticalOffsetDelta(-0.002f) },
+                      shape = RoundedCornerShape(8.dp),
+                      colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceElevated),
+                      contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                      modifier = Modifier.weight(1f)
+                    ) {
+                      Icon(Icons.Default.Remove, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(14.dp))
+                      Spacer(modifier = Modifier.width(4.dp))
+                      Text("Down 0.2%", fontSize = 10.5.sp, color = TextPrimary)
+                    }
+
+                    Button(
+                      onClick = { onAdjustVerticalOffsetDelta(0.002f) },
+                      shape = RoundedCornerShape(8.dp),
+                      colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceElevated),
+                      contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                      modifier = Modifier.weight(1f)
+                    ) {
+                      Icon(Icons.Default.Add, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(14.dp))
+                      Spacer(modifier = Modifier.width(4.dp))
+                      Text("Up 0.2%", fontSize = 10.5.sp, color = TextPrimary)
+                    }
+                  }
+
+                  // Vertical Slider
+                  Slider(
+                    value = overlayConfig.verticalOffsetPercent,
+                    onValueChange = onVerticalOffsetChanged,
+                    valueRange = 0.00f..0.22f,
+                    colors = SliderDefaults.colors(
+                      thumbColor = Color.White,
+                      activeTrackColor = AccentIndigo,
+                      inactiveTrackColor = DarkBorder
+                    ),
+                    modifier = Modifier.testTag("vertical_offset_slider")
+                  )
+
+                  Text(
+                    text = "💡 Tip: You can also touch or drag anywhere on the video preview above to position the character directly on your progress bar.",
+                    fontSize = 10.sp,
+                    color = TextSecondary,
+                    lineHeight = 14.sp
+                  )
+                }
+              }
+
+              // Quick Snap Presets Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  Text(
+                    text = "🎯 Quick Height Snap Presets",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                  )
+
+                  Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Surface(
+                      color = if (overlayConfig.verticalOffsetPercent <= 0.006f) AccentIndigo else DarkSurfaceElevated,
+                      shape = RoundedCornerShape(8.dp),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent <= 0.006f) AccentIndigoLight else DarkBorder),
+                      modifier = Modifier
+                        .weight(1f)
+                        .clickable { onVerticalOffsetChanged(0.004f) }
+                    ) {
+                      Column(modifier = Modifier.padding(6.dp)) {
+                        Text("TikTok", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("0.4% Bottom", fontSize = 8.5.sp, color = Color.White.copy(alpha = 0.8f))
+                      }
+                    }
+
+                    Surface(
+                      color = if (overlayConfig.verticalOffsetPercent in 0.007f..0.015f) AccentIndigo else DarkSurfaceElevated,
+                      shape = RoundedCornerShape(8.dp),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent in 0.007f..0.015f) AccentIndigoLight else DarkBorder),
+                      modifier = Modifier
+                        .weight(1f)
+                        .clickable { onVerticalOffsetChanged(0.009f) }
+                    ) {
+                      Column(modifier = Modifier.padding(6.dp)) {
+                        Text("YT Shorts", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("0.9% Red", fontSize = 8.5.sp, color = Color.White.copy(alpha = 0.8f))
+                      }
+                    }
+
+                    Surface(
+                      color = if (overlayConfig.verticalOffsetPercent in 0.016f..0.032f) AccentIndigo else DarkSurfaceElevated,
+                      shape = RoundedCornerShape(8.dp),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent in 0.016f..0.032f) AccentIndigoLight else DarkBorder),
+                      modifier = Modifier
+                        .weight(1f)
+                        .clickable { onVerticalOffsetChanged(0.024f) }
+                    ) {
+                      Column(modifier = Modifier.padding(6.dp)) {
+                        Text("IG Reels", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("2.4% Reels", fontSize = 8.5.sp, color = Color.White.copy(alpha = 0.8f))
+                      }
+                    }
+
+                    Surface(
+                      color = if (overlayConfig.verticalOffsetPercent > 0.035f) AccentIndigo else DarkSurfaceElevated,
+                      shape = RoundedCornerShape(8.dp),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent > 0.035f) AccentIndigoLight else DarkBorder),
+                      modifier = Modifier
+                        .weight(1f)
+                        .clickable { onVerticalOffsetChanged(0.075f) }
+                    ) {
+                      Column(modifier = Modifier.padding(6.dp)) {
+                        Text("Mid View", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("7.5% High", fontSize = 8.5.sp, color = Color.White.copy(alpha = 0.8f))
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // ─── TAB 2: LOCOMOTION GAIT & EXPORT FPS ───
+            2 -> {
               val effectiveStepMs = WalkCycleMath.getEffectiveStepDurationMs(
                 behavior = overlayConfig.behavior,
                 durationMs = effectiveDurationMs,
@@ -887,129 +1177,77 @@ fun EditorScreen(
               }
             }
 
-            // ─── TAB 2: SIZE & POSITION ───
-            2 -> {
+            // ─── TAB 3: FRAMING & BLACK-BAR REMOVAL & SPECS ───
+            3 -> {
               Text(
-                text = "CHARACTER SCALE PRESETS",
+                text = "ASPECT RATIO & BLACK BAR CROPPING",
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextMuted,
                 letterSpacing = 0.6.sp
               )
 
-              LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()
-              ) {
-                items(CharacterSizePreset.entries.toTypedArray(), key = { it.name }) { preset ->
-                  val isSelected = overlayConfig.sizePreset == preset
-                  FilterChip(
-                    selected = isSelected,
-                    onClick = { onSizePresetChanged(preset) },
-                    shape = RoundedCornerShape(10.dp),
-                    label = { Text(preset.label, fontSize = 11.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                      selectedContainerColor = AccentIndigo,
-                      selectedLabelColor = Color.White,
-                      containerColor = DarkSurfaceCard,
-                      labelColor = TextSecondary
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                      borderColor = DarkBorder,
-                      selectedBorderColor = AccentIndigo,
-                      enabled = true,
-                      selected = isSelected
-                    )
-                  )
-                }
-              }
-
-              // Fine-Tuning Controls Card
-              Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, DarkBorder),
-                modifier = Modifier.fillMaxWidth()
-              ) {
-                Column(
-                  modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                  verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                  // Precision Scale Slider
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                VideoFramingMode.entries.forEach { mode ->
+                  val isSelected = overlayConfig.framingMode == mode
+                  Surface(
+                    color = if (isSelected) AccentIndigoMuted else DarkSurfaceCard,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, if (isSelected) AccentIndigo else DarkBorder),
+                    modifier = Modifier
+                      .fillMaxWidth()
+                      .clickable { onFramingModeChanged(mode) }
                   ) {
-                    Text(
-                      text = "SCALE",
-                      fontSize = 11.sp,
-                      fontWeight = FontWeight.Bold,
-                      color = TextMuted,
-                      modifier = Modifier.width(52.dp)
-                    )
-                    Slider(
-                      value = overlayConfig.customScalePercent,
-                      onValueChange = onCustomScaleChanged,
-                      valueRange = 0.02f..0.20f,
-                      colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = AccentIndigo,
-                        inactiveTrackColor = DarkBorder
-                      ),
-                      modifier = Modifier
-                        .weight(1f)
-                        .testTag("character_size_slider")
-                    )
-                    Text(
-                      text = "${(overlayConfig.customScalePercent * 100).toInt()}%",
-                      fontSize = 11.sp,
-                      fontFamily = FontFamily.Monospace,
-                      fontWeight = FontWeight.Bold,
-                      color = TextPrimary,
-                      modifier = Modifier.width(36.dp)
-                    )
-                  }
-
-                  // Vertical Ground Offset Slider
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                  ) {
-                    Text(
-                      text = "HEIGHT",
-                      fontSize = 11.sp,
-                      fontWeight = FontWeight.Bold,
-                      color = TextMuted,
-                      modifier = Modifier.width(52.dp)
-                    )
-                    Slider(
-                      value = overlayConfig.verticalOffsetPercent,
-                      onValueChange = onVerticalOffsetChanged,
-                      valueRange = 0.00f..0.22f,
-                      colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = AccentIndigo,
-                        inactiveTrackColor = DarkBorder
-                      ),
-                      modifier = Modifier
-                        .weight(1f)
-                        .testTag("vertical_offset_slider")
-                    )
-                    Text(
-                      text = "${(overlayConfig.verticalOffsetPercent * 100).toInt()}%",
-                      fontSize = 11.sp,
-                      fontFamily = FontFamily.Monospace,
-                      fontWeight = FontWeight.Bold,
-                      color = TextPrimary,
-                      modifier = Modifier.width(36.dp)
-                    )
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      modifier = Modifier.padding(12.dp)
+                    ) {
+                      Icon(
+                        imageVector = if (mode == VideoFramingMode.PHONE_TALL_19_5_9) Icons.Default.Smartphone else if (mode == VideoFramingMode.REELS_9_16) Icons.Default.Crop else Icons.Default.AspectRatio,
+                        contentDescription = null,
+                        tint = if (isSelected) AccentIndigoLight else TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                      )
+                      Spacer(modifier = Modifier.width(10.dp))
+                      Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                          Text(
+                            text = mode.displayName,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                          )
+                          Spacer(modifier = Modifier.width(6.dp))
+                          Surface(
+                            color = Color(0x336366F1),
+                            shape = RoundedCornerShape(4.dp)
+                          ) {
+                            Text(
+                              text = mode.subtitle,
+                              fontSize = 9.sp,
+                              color = AccentIndigoLight,
+                              fontWeight = FontWeight.SemiBold,
+                              modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                          }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                          text = mode.description,
+                          fontSize = 10.5.sp,
+                          color = TextSecondary,
+                          lineHeight = 14.sp
+                        )
+                      }
+                      if (isSelected) {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = AccentIndigoLight, modifier = Modifier.size(18.dp))
+                      }
+                    }
                   }
                 }
               }
 
-              // Quick Snap Presets Card
+              // Explain why black bars happen on TikTok
               Card(
                 colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
                 shape = RoundedCornerShape(14.dp),
@@ -1022,73 +1260,26 @@ fun EditorScreen(
                     .padding(12.dp),
                   verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                  Text(
-                    text = "🎯 Quick Timeline Snap Targets",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                  )
-
-                  Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                  ) {
-                    Surface(
-                      color = DarkSurfaceElevated,
-                      shape = RoundedCornerShape(8.dp),
-                      border = BorderStroke(1.dp, AccentIndigoLight.copy(alpha = 0.4f)),
-                      modifier = Modifier
-                        .weight(1f)
-                        .clickable { onVerticalOffsetChanged(0.038f) }
-                    ) {
-                      Column(modifier = Modifier.padding(8.dp)) {
-                        Text("Reels / Shorts", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentIndigoLight)
-                        Text("3.8% Offset", fontSize = 9.sp, color = TextMuted)
-                      }
-                    }
-
-                    Surface(
-                      color = DarkSurfaceElevated,
-                      shape = RoundedCornerShape(8.dp),
-                      border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.4f)),
-                      modifier = Modifier
-                        .weight(1f)
-                        .clickable { onVerticalOffsetChanged(0.015f) }
-                    ) {
-                      Column(modifier = Modifier.padding(8.dp)) {
-                        Text("Bottom Track", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentCyan)
-                        Text("1.5% Offset", fontSize = 9.sp, color = TextMuted)
-                      }
-                    }
-
-                    Surface(
-                      color = DarkSurfaceElevated,
-                      shape = RoundedCornerShape(8.dp),
-                      border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f)),
-                      modifier = Modifier
-                        .weight(1f)
-                        .clickable { onVerticalOffsetChanged(0.075f) }
-                    ) {
-                      Column(modifier = Modifier.padding(8.dp)) {
-                        Text("Mid Horizon", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentGreen)
-                        Text("7.5% Offset", fontSize = 9.sp, color = TextMuted)
-                      }
-                    }
+                  Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = AccentAmber, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                      text = "Why Do Black Bars Appear on TikTok?",
+                      fontSize = 12.sp,
+                      fontWeight = FontWeight.Bold,
+                      color = TextPrimary
+                    )
                   }
+                  Text(
+                    text = "When downloading reels from Instagram or posting to TikTok on modern tall smartphones (19.5:9 / 6.19\" screens), TikTok automatically adds black bars at top and bottom if the video isn't full frame. This pushes TikTok's scrubber bar to the very bottom of the screen. Selecting '9:16 Fullscreen' or '6.19\" Tall Screen' above crops black borders and fills your screen completely!",
+                    fontSize = 10.5.sp,
+                    color = TextSecondary,
+                    lineHeight = 15.sp
+                  )
                 }
               }
-            }
 
-            // ─── TAB 3: VIDEO SPECS & TOOLS ───
-            3 -> {
-              Text(
-                text = "VIDEO SPECIFICATIONS & ENGINE",
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextMuted,
-                letterSpacing = 0.6.sp
-              )
-
+              // Video Tech Specs Card
               Card(
                 colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
                 shape = RoundedCornerShape(14.dp),
@@ -1106,7 +1297,7 @@ fun EditorScreen(
                     modifier = Modifier.fillMaxWidth()
                   ) {
                     Column {
-                      Text("Resolution", fontSize = 9.5.sp, color = TextMuted)
+                      Text("Input Resolution", fontSize = 9.5.sp, color = TextMuted)
                       Text(
                         text = "${metadata.effectiveWidth} × ${metadata.effectiveHeight}",
                         fontSize = 13.sp,
@@ -1148,44 +1339,14 @@ fun EditorScreen(
                 }
               }
 
-              // Hardware Acceleration Card
-              Card(
-                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, DarkBorder),
-                modifier = Modifier.fillMaxWidth()
-              ) {
-                Column(
-                  modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                  verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                  Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentIndigoLight, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                      text = "MediaCodec EGL Hardware Encoding",
-                      fontSize = 12.sp,
-                      fontWeight = FontWeight.Bold,
-                      color = TextPrimary
-                    )
-                  }
-                  Text(
-                    text = "Exports bit-for-bit with hardware surface encoding and native Presentation Time Stamps (PTS), ensuring exported video length and frame rate match your source video flawlessly.",
-                    fontSize = 11.sp,
-                    color = TextSecondary,
-                    lineHeight = 15.sp
-                  )
-                }
-              }
-
               // Reset Button
               OutlinedButton(
                 onClick = {
                   onCustomScaleChanged(selectedCharacter.defaultScale)
-                  onVerticalOffsetChanged(selectedCharacter.recommendedVerticalOffsetPercent)
-                  onHorizontalRangeChanged(0.0f, 1.0f)
+                  onVerticalOffsetChanged(0.004f)
+                  onHorizontalRangeChanged(0.01f, 0.99f)
+                  onPlatformSelected(SocialPlatform.TIKTOK)
+                  onFramingModeChanged(VideoFramingMode.ORIGINAL)
                 },
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, DarkBorder),
@@ -1193,7 +1354,7 @@ fun EditorScreen(
               ) {
                 Icon(Icons.Default.RestartAlt, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Reset All Sliders to Companion Defaults", fontSize = 12.sp, color = TextSecondary)
+                Text("Reset All Sliders to TikTok Ultra-Bottom Defaults", fontSize = 12.sp, color = TextSecondary)
               }
             }
           }

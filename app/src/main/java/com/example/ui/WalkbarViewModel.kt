@@ -95,6 +95,28 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
     _overlayConfig.value = _overlayConfig.value.copy(customScalePercent = scale)
   }
 
+  fun setTargetPlatform(platform: com.example.model.SocialPlatform) {
+    _overlayConfig.value = _overlayConfig.value.copy(
+      targetPlatform = platform,
+      verticalOffsetPercent = platform.defaultVerticalOffset,
+      startXPercent = platform.defaultStartX,
+      endXPercent = platform.defaultEndX
+    )
+  }
+
+  fun setFramingMode(mode: com.example.model.VideoFramingMode) {
+    _overlayConfig.value = _overlayConfig.value.copy(framingMode = mode)
+  }
+
+  fun adjustVerticalOffsetDelta(delta: Float) {
+    val current = _overlayConfig.value.verticalOffsetPercent
+    val newOffset = (current + delta).coerceIn(0f, 0.25f)
+    _overlayConfig.value = _overlayConfig.value.copy(
+      verticalOffsetPercent = newOffset,
+      targetPlatform = com.example.model.SocialPlatform.CUSTOM
+    )
+  }
+
   fun setVerticalOffset(offset: Float) {
     _overlayConfig.value = _overlayConfig.value.copy(verticalOffsetPercent = offset.coerceIn(0f, 0.25f))
   }

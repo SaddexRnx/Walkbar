@@ -19,14 +19,19 @@ data class CharacterOverlayConfig(
   val behavior: AnimationBehavior = AnimationBehavior.WALK,
   val sizePreset: CharacterSizePreset = CharacterSizePreset.SMALL,
   val customScalePercent: Float = 0.045f,
-  val verticalOffsetPercent: Float = 0.038f, // 0.00 to 0.20 (0% to 20% from bottom)
-  val startXPercent: Float = 0.02f,          // 0.00 to 1.00
-  val endXPercent: Float = 0.98f,            // 0.00 to 1.00
+  val verticalOffsetPercent: Float = 0.004f, // 0.00 to 0.25 (0.4% default for TikTok ultra-bottom bar)
+  val startXPercent: Float = 0.01f,          // 0.00 to 1.00
+  val endXPercent: Float = 0.99f,            // 0.00 to 1.00
   val facingRight: Boolean = true,
   val reverseDirection: Boolean = false,
+  val targetPlatform: SocialPlatform = SocialPlatform.TIKTOK,
+  val framingMode: VideoFramingMode = VideoFramingMode.ORIGINAL,
   val showInstagramPreviewGuide: Boolean = true,
   val exportFpsOption: ExportFpsOption = ExportFpsOption.FPS_60
 ) {
+  val showPlatformGuide: Boolean
+    get() = showInstagramPreviewGuide
+
   // Effective start and end considering direction
   val effectiveStartX: Float
     get() = if (reverseDirection) endXPercent else startXPercent

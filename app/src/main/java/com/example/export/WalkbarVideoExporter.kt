@@ -19,6 +19,8 @@ import android.net.Uri
 import android.opengl.Matrix
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.HandlerThread
 import android.provider.MediaStore
 import android.view.Surface
 import com.example.characters.CharacterRegistry
@@ -27,6 +29,7 @@ import com.example.characters.WalkCycleMath
 import com.example.model.CharacterOverlayConfig
 import com.example.model.ExportFpsOption
 import com.example.model.ExportState
+import com.example.model.VideoFramingMode
 import com.example.model.VideoMetadata
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -55,17 +58,32 @@ object WalkbarVideoExporter {
 
     val character = CharacterRegistry.getById(config.characterId)
 
-    // Resolution & Dimension configuration
+    // Resolution & Dimension configuration based on Framing Mode
     val rawW = metadata.effectiveWidth
     val rawH = metadata.effectiveHeight
-    val maxDimension = 1920
-    val scale = if (rawW > maxDimension || rawH > maxDimension) {
-      maxDimension.toFloat() / maxOf(rawW, rawH).toFloat()
-    } else {
-      1.0f
+
+    val (targetW, targetH) = when (config.framingMode) {
+      VideoFramingMode.REELS_9_16 -> {
+        Pair(1080, 1920)
+      }
+      VideoFramingMode.PHONE_TALL_19_5_9 -> {
+        Pair(1080, 2340)
+      }
+      VideoFramingMode.ORIGINAL -> {
+        val maxDimension = 1920
+        val scale = if (rawW > maxDimension || rawH > maxDimension) {
+          maxDimension.toFloat() / maxOf(rawW, rawH).toFloat()
+        } else {
+          1.0f
+        }
+        val w = (((rawW * scale).toInt() / 2) * 2).coerceAtLeast(160)
+        val h = (((rawH * scale).toInt() / 2) * 2).coerceAtLeast(160)
+        Pair(w, h)
+      }
     }
-    val width = (((rawW * scale).toInt() / 2) * 2).coerceAtLeast(160)
-    val height = (((rawH * scale).toInt() / 2) * 2).coerceAtLeast(160)
+
+    val width = (((targetW).toInt() / 2) * 2).coerceAtLeast(160)
+    val height = (((targetH).toInt() / 2) * 2).coerceAtLeast(160)
     val durationMs = metadata.durationMs.coerceAtLeast(1000L)
 
     // Framerate selection based on user preference
@@ -83,8 +101,9 @@ object WalkbarVideoExporter {
     val tempOutputFile = File(context.cacheDir, "walkbar_export_${System.currentTimeMillis()}.mp4")
 
     var exportSucceeded = false
+    var failureReason = ""
 
-    // Try Ultra-Fast Hardware Decoder + OpenGL Compositing first
+    // 1. Try Hardware Decoder + OpenGL Compositing first
     try {
       exportWithHardwarePipeline(
         context = context,
@@ -118,65 +137,92 @@ object WalkbarVideoExporter {
       )
       exportSucceeded = true
     } catch (c: CancellationException) {
+      tempOutputFile.delete()
       throw c
     } catch (e: Exception) {
       e.printStackTrace()
-      // If hardware decoder pipeline hit any device codec limitation, run direct fallback
+      failureReason = e.message ?: "Hardware pipeline error"
+      tempOutputFile.delete()
     }
 
-    // Fallback pipeline if hardware decoder couldn't initialize for exotic codec
+    // 2. High-reliability fallback pipeline if hardware decoder hit any device codec limitation
     if (!exportSucceeded) {
-      exportWithDirectFallbackPipeline(
-        context = context,
-        metadata = metadata,
-        config = config,
-        width = width,
-        height = height,
-        durationMs = durationMs,
-        fps = fps,
-        totalFrames = totalFrames,
-        frameIntervalUs = frameIntervalUs,
-        targetBitrate = targetBitrate,
-        tempOutputFile = tempOutputFile,
-        onProgress = { progress, currentFrame, total ->
-          emit(
-            ExportState.Rendering(
-              progress = progress,
-              currentFrame = currentFrame,
-              totalFrames = total,
-              fps = fps,
-              statusMessage = "Compositing frame $currentFrame of $total (${(progress * 100).toInt()}%)"
+      try {
+        emit(ExportState.Preparing("Optimizing render pipeline..."))
+        exportWithDirectFallbackPipeline(
+          context = context,
+          metadata = metadata,
+          config = config,
+          width = width,
+          height = height,
+          durationMs = durationMs,
+          fps = fps,
+          totalFrames = totalFrames,
+          frameIntervalUs = frameIntervalUs,
+          targetBitrate = targetBitrate,
+          tempOutputFile = tempOutputFile,
+          onProgress = { progress, currentFrame, total ->
+            emit(
+              ExportState.Rendering(
+                progress = progress,
+                currentFrame = currentFrame,
+                totalFrames = total,
+                fps = fps,
+                statusMessage = "Compositing frame $currentFrame of $total (${(progress * 100).toInt()}%)"
+              )
             )
+          },
+          onPreparingAudio = {
+            emit(ExportState.Preparing("Muxing audio stream..."))
+          },
+          onFinalizing = {
+            emit(ExportState.Finalizing)
+          }
+        )
+        exportSucceeded = true
+      } catch (c: CancellationException) {
+        tempOutputFile.delete()
+        throw c
+      } catch (e: Exception) {
+        e.printStackTrace()
+        tempOutputFile.delete()
+        emit(
+          ExportState.Error(
+            userFriendlyMessage = "Video export could not be completed: ${e.message ?: failureReason}. Please try a standard resolution or a shorter clip.",
+            throwable = e
           )
-        },
-        onPreparingAudio = {
-          emit(ExportState.Preparing("Muxing audio stream..."))
-        },
-        onFinalizing = {
-          emit(ExportState.Finalizing)
-        }
-      )
+        )
+        return@flow
+      }
     }
 
-    // Save final result to Gallery / App storage
-    val finalUri = saveToGalleryOrAppStorage(context, tempOutputFile, metadata.fileName)
-    val finalSize = tempOutputFile.length()
+    if (exportSucceeded && tempOutputFile.exists() && tempOutputFile.length() > 0) {
+      // Save final result to Gallery / App storage
+      val finalUri = saveToGalleryOrAppStorage(context, tempOutputFile, metadata.fileName)
+      val finalSize = tempOutputFile.length()
 
-    emit(
-      ExportState.Success(
-        outputUri = finalUri,
-        outputPath = tempOutputFile.absolutePath,
-        fileSizeBytes = finalSize,
-        durationMs = durationMs,
-        width = width,
-        height = height
+      emit(
+        ExportState.Success(
+          outputUri = finalUri,
+          outputPath = tempOutputFile.absolutePath,
+          fileSizeBytes = finalSize,
+          durationMs = durationMs,
+          width = width,
+          height = height
+        )
       )
-    )
+    } else {
+      emit(
+        ExportState.Error(
+          userFriendlyMessage = "Video export produced an empty output. Please verify the video format and retry."
+        )
+      )
+    }
   }.flowOn(Dispatchers.Default)
 
   /**
    * Ultra-Fast Hardware Decoder + OpenGL Surface Pipeline
-   * Decodes directly to GPU SurfaceTexture at 200+ FPS, blending character overlay with alpha.
+   * Decodes video packets and blends character overlay with exact presentation timestamps.
    */
   private suspend fun exportWithHardwarePipeline(
     context: Context,
@@ -199,13 +245,14 @@ object WalkbarVideoExporter {
     var videoTrackIndex = -1
     var audioTrackIndex = -1
     var muxerStarted = false
+    var videoSamplesWritten = 0
     val firstVideoPtsHolder = longArrayOf(-1L)
 
     // 1. Setup Video Encoder
     val videoFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
       setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
       setInteger(MediaFormat.KEY_BIT_RATE, targetBitrate)
-      setInteger(MediaFormat.KEY_FRAME_RATE, fps.toInt())
+      setInteger(MediaFormat.KEY_FRAME_RATE, fps.toInt().coerceAtLeast(1))
       setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
     }
 
@@ -219,6 +266,19 @@ object WalkbarVideoExporter {
     val surfaceTexture = SurfaceTexture(oesTextureId).apply {
       setDefaultBufferSize(width, height)
     }
+
+    val glThread = HandlerThread("GLSurfaceTextureThread").apply { start() }
+    val glHandler = Handler(glThread.looper)
+    val frameSyncObject = Object()
+    var frameAvailable = false
+
+    surfaceTexture.setOnFrameAvailableListener({
+      synchronized(frameSyncObject) {
+        frameAvailable = true
+        frameSyncObject.notifyAll()
+      }
+    }, glHandler)
+
     val decoderOutputSurface = Surface(surfaceTexture)
 
     // 2. Setup Video & Audio Extractors
@@ -226,14 +286,12 @@ object WalkbarVideoExporter {
     videoExtractor.setDataSource(context, metadata.uri, null)
 
     var videoDecoder: MediaCodec? = null
-    var videoDecoderFormat: MediaFormat? = null
 
     for (i in 0 until videoExtractor.trackCount) {
       val format = videoExtractor.getTrackFormat(i)
       val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
       if (mime.startsWith("video/")) {
         videoExtractor.selectTrack(i)
-        videoDecoderFormat = format
         videoDecoder = MediaCodec.createDecoderByType(mime)
         videoDecoder.configure(format, decoderOutputSurface, null, 0)
         videoDecoder.start()
@@ -264,7 +322,7 @@ object WalkbarVideoExporter {
       }
     }
 
-    val bufferInfo = MediaCodec.BufferInfo()
+    val encoderBufferInfo = MediaCodec.BufferInfo()
     val decoderBufferInfo = MediaCodec.BufferInfo()
     val charSize = height * config.customScalePercent
     val overlayBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -274,153 +332,156 @@ object WalkbarVideoExporter {
 
     var extractorDone = false
     var decoderDone = false
-    var currentDecodedFrameUs = 0L
+    var encoderEos = false
+    var framesRendered = 0
+    val timeoutUs = 10000L
 
     try {
-      for (frameIndex in 0 until totalFrames) {
+      while (!encoderEos) {
         if (!coroutineContext.isActive) {
           throw CancellationException("Export was cancelled by user")
         }
 
-        val targetPtsUs = frameIndex * frameIntervalUs
-        val currentMs = targetPtsUs / 1000L
-        val ptsNs = targetPtsUs * 1000L
-
-        // Feed decoder until we reach or pass targetPtsUs
-        while (!decoderDone && currentDecodedFrameUs < targetPtsUs) {
-          // Feed input to decoder
-          if (!extractorDone) {
-            val inIdx = videoDecoder.dequeueInputBuffer(1000L)
-            if (inIdx >= 0) {
-              val inBuffer = videoDecoder.getInputBuffer(inIdx)
-              if (inBuffer != null) {
-                val sampleSize = videoExtractor.readSampleData(inBuffer, 0)
-                if (sampleSize < 0) {
-                  videoDecoder.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                  extractorDone = true
-                } else {
-                  val sampleTime = videoExtractor.sampleTime
-                  videoDecoder.queueInputBuffer(inIdx, 0, sampleSize, sampleTime, 0)
-                  videoExtractor.advance()
-                }
+        // A. Feed Input into Video Decoder
+        if (!extractorDone) {
+          val inIdx = videoDecoder.dequeueInputBuffer(timeoutUs)
+          if (inIdx >= 0) {
+            val inBuffer = videoDecoder.getInputBuffer(inIdx)
+            if (inBuffer != null) {
+              val sampleSize = videoExtractor.readSampleData(inBuffer, 0)
+              if (sampleSize < 0) {
+                videoDecoder.queueInputBuffer(inIdx, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                extractorDone = true
+              } else {
+                val sampleTime = videoExtractor.sampleTime
+                videoDecoder.queueInputBuffer(inIdx, 0, sampleSize, sampleTime, 0)
+                videoExtractor.advance()
               }
             }
           }
+        }
 
-          // Get decoded frame
-          val outIdx = videoDecoder.dequeueOutputBuffer(decoderBufferInfo, 1000L)
+        // B. Dequeue Decoded Output from Video Decoder & Render to SurfaceTexture
+        if (!decoderDone) {
+          val outIdx = videoDecoder.dequeueOutputBuffer(decoderBufferInfo, timeoutUs)
           if (outIdx >= 0) {
-            if ((decoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-              decoderDone = true
-            }
-            val render = decoderBufferInfo.size > 0
-            videoDecoder.releaseOutputBuffer(outIdx, render)
+            val isEos = (decoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
+            val render = decoderBufferInfo.size > 0 && !isEos
+
             if (render) {
-              surfaceTexture.updateTexImage()
-              surfaceTexture.getTransformMatrix(texMatrix)
-              currentDecodedFrameUs = decoderBufferInfo.presentationTimeUs
+              synchronized(frameSyncObject) {
+                frameAvailable = false
+              }
+              videoDecoder.releaseOutputBuffer(outIdx, true)
+
+              // Wait for SurfaceTexture to latch new frame
+              synchronized(frameSyncObject) {
+                var waitCount = 0
+                while (!frameAvailable && waitCount < 10) {
+                  frameSyncObject.wait(50L)
+                  waitCount++
+                }
+              }
+
+              try {
+                surfaceTexture.updateTexImage()
+                surfaceTexture.getTransformMatrix(texMatrix)
+              } catch (_: Exception) {}
+
+              val ptsUs = decoderBufferInfo.presentationTimeUs
+              val currentMs = ptsUs / 1000L
+              val ptsNs = ptsUs * 1000L
+
+              // Draw Walking Character onto Overlay Canvas
+              overlayCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+              val pixelX = WalkCycleMath.calculatePixelX(currentMs, durationMs, config, width.toFloat())
+              val pixelY = WalkCycleMath.calculatePixelY(config, height.toFloat())
+              val phase = WalkCycleMath.calculatePhase(
+                currentTimeMs = currentMs,
+                behavior = config.behavior,
+                isPlaying = true,
+                durationMs = durationMs,
+                config = config,
+                canvasWidth = width.toFloat(),
+                canvasHeight = height.toFloat()
+              )
+
+              CharacterRenderer.drawCharacter(
+                canvas = overlayCanvas,
+                character = character,
+                behavior = config.behavior,
+                centerX = pixelX,
+                bottomY = pixelY,
+                size = charSize,
+                phase = phase,
+                facingRight = config.effectiveFacingRight,
+                currentTimeMs = currentMs
+              )
+
+              // Render Hardware OES Video Frame + Character Overlay into Encoder Input Surface
+              eglEncoder.renderOesAndOverlayFrame(
+                oesTextureId = oesTextureId,
+                texMatrix = texMatrix,
+                overlayBitmap = overlayBitmap,
+                timestampNs = ptsNs,
+                width = width,
+                height = height
+              )
+
+              framesRendered++
+              val progress = (currentMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+              if (framesRendered % 4 == 0) {
+                onProgress(progress, framesRendered, totalFrames)
+              }
+            } else {
+              videoDecoder.releaseOutputBuffer(outIdx, false)
             }
-          } else if (outIdx == MediaCodec.INFO_TRY_AGAIN_LATER && extractorDone) {
-            decoderDone = true
-            break
+
+            if (isEos) {
+              decoderDone = true
+              encoder.signalEndOfInputStream()
+            }
           }
         }
 
-        // 2. Render Character Overlay onto transparent canvas
-        overlayCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        val pixelX = WalkCycleMath.calculatePixelX(currentMs, durationMs, config, width.toFloat())
-        val pixelY = WalkCycleMath.calculatePixelY(config, height.toFloat())
-        val phase = WalkCycleMath.calculatePhase(
-          currentTimeMs = currentMs,
-          behavior = config.behavior,
-          isPlaying = true,
-          durationMs = durationMs,
-          config = config,
-          canvasWidth = width.toFloat(),
-          canvasHeight = height.toFloat()
-        )
-
-        CharacterRenderer.drawCharacter(
-          canvas = overlayCanvas,
-          character = character,
-          behavior = config.behavior,
-          centerX = pixelX,
-          bottomY = pixelY,
-          size = charSize,
-          phase = phase,
-          facingRight = config.effectiveFacingRight,
-          currentTimeMs = currentMs
-        )
-
-        // 3. Render hardware OES video texture + 2D overlay directly into encoder input surface
-        eglEncoder.renderOesAndOverlayFrame(
-          oesTextureId = oesTextureId,
-          texMatrix = texMatrix,
-          overlayBitmap = overlayBitmap,
-          timestampNs = ptsNs,
-          width = width,
-          height = height
-        )
-
-        // Drain encoder
-        videoTrackIndex = drainEncoder(
-          encoder = encoder,
-          bufferInfo = bufferInfo,
-          muxer = muxer,
-          currentVideoTrackIndex = videoTrackIndex,
-          isMuxerStarted = muxerStarted,
-          audioFormat = audioFormat,
-          firstVideoPtsHolder = firstVideoPtsHolder
-        ) { vTrack, aTrack ->
-          videoTrackIndex = vTrack
-          audioTrackIndex = aTrack
-          muxerStarted = true
-        }
-
-        if (frameIndex % 3 == 0 || frameIndex == totalFrames - 1) {
-          val progress = (frameIndex + 1).toFloat() / totalFrames.toFloat()
-          onProgress(progress, frameIndex + 1, totalFrames)
+        // C. Drain Encoder Packets to MediaMuxer
+        while (true) {
+          val encOutIdx = encoder.dequeueOutputBuffer(encoderBufferInfo, 0L)
+          if (encOutIdx == MediaCodec.INFO_TRY_AGAIN_LATER) {
+            break
+          } else if (encOutIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+            if (!muxerStarted) {
+              videoTrackIndex = muxer.addTrack(encoder.outputFormat)
+              if (audioFormat != null) {
+                audioTrackIndex = muxer.addTrack(audioFormat)
+              }
+              muxer.start()
+              muxerStarted = true
+            }
+          } else if (encOutIdx >= 0) {
+            if ((encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+              encoderBufferInfo.size = 0
+            }
+            val encodedData = encoder.getOutputBuffer(encOutIdx)
+            if (encodedData != null && encoderBufferInfo.size > 0 && muxerStarted && videoTrackIndex >= 0) {
+              if (firstVideoPtsHolder[0] < 0L) {
+                firstVideoPtsHolder[0] = encoderBufferInfo.presentationTimeUs
+              }
+              encoderBufferInfo.presentationTimeUs = (encoderBufferInfo.presentationTimeUs - firstVideoPtsHolder[0]).coerceAtLeast(0L)
+              encodedData.position(encoderBufferInfo.offset)
+              encodedData.limit(encoderBufferInfo.offset + encoderBufferInfo.size)
+              muxer.writeSampleData(videoTrackIndex, encodedData, encoderBufferInfo)
+              videoSamplesWritten++
+            }
+            if ((encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+              encoderEos = true
+            }
+            encoder.releaseOutputBuffer(encOutIdx, false)
+          }
         }
       }
 
       overlayBitmap.recycle()
-      encoder.signalEndOfInputStream()
-
-      // Drain remaining video packets
-      var eos = false
-      while (!eos) {
-        val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
-        if (outIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
-          break
-        } else if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-          if (!muxerStarted) {
-            videoTrackIndex = muxer.addTrack(encoder.outputFormat)
-            if (audioFormat != null) {
-              audioTrackIndex = muxer.addTrack(audioFormat)
-            }
-            muxer.start()
-            muxerStarted = true
-          }
-        } else if (outIndex >= 0) {
-          if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-            bufferInfo.size = 0
-          }
-          val encodedData = encoder.getOutputBuffer(outIndex)
-          if (encodedData != null && bufferInfo.size > 0 && muxerStarted) {
-            if (firstVideoPtsHolder[0] < 0L) {
-              firstVideoPtsHolder[0] = bufferInfo.presentationTimeUs
-            }
-            bufferInfo.presentationTimeUs = (bufferInfo.presentationTimeUs - firstVideoPtsHolder[0]).coerceAtLeast(0L)
-            encodedData.position(bufferInfo.offset)
-            encodedData.limit(bufferInfo.offset + bufferInfo.size)
-            muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
-          }
-          if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-            eos = true
-          }
-          encoder.releaseOutputBuffer(outIndex, false)
-        }
-      }
 
       // 4. Mux Audio Passthrough Stream
       if (audioExtractor != null && audioTrackIndex >= 0 && muxerStarted) {
@@ -430,29 +491,30 @@ object WalkbarVideoExporter {
 
       onFinalizing()
     } finally {
-      try {
-        eglEncoder.release()
-        encoder.stop()
-        encoder.release()
-        encoderInputSurface.release()
-        videoDecoder.stop()
-        videoDecoder.release()
-        decoderOutputSurface.release()
-        surfaceTexture.release()
-        videoExtractor.release()
-        audioExtractor?.release()
-        if (muxerStarted) {
-          muxer.stop()
-          muxer.release()
-        }
-      } catch (e: Exception) {
-        e.printStackTrace()
+      // Clean, ordered resource release
+      runCatching { videoDecoder?.stop() }
+      runCatching { videoDecoder?.release() }
+      runCatching { decoderOutputSurface.release() }
+      runCatching { surfaceTexture.release() }
+      runCatching { glThread.quitSafely() }
+
+      runCatching { encoder.stop() }
+      runCatching { encoder.release() }
+      runCatching { eglEncoder.release() }
+      runCatching { encoderInputSurface.release() }
+
+      runCatching { videoExtractor.release() }
+      runCatching { audioExtractor?.release() }
+
+      if (muxerStarted && videoSamplesWritten > 0) {
+        runCatching { muxer.stop() }
       }
+      runCatching { muxer.release() }
     }
   }
 
   /**
-   * High-Reliability Fallback Pipeline
+   * High-Reliability Fallback Pipeline using Frame Seeking & Canvas Rendering
    */
   private suspend fun exportWithDirectFallbackPipeline(
     context: Context,
@@ -475,12 +537,13 @@ object WalkbarVideoExporter {
     var videoTrackIndex = -1
     var audioTrackIndex = -1
     var muxerStarted = false
+    var videoSamplesWritten = 0
     val firstVideoPtsHolder = longArrayOf(-1L)
 
     val videoFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
       setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
       setInteger(MediaFormat.KEY_BIT_RATE, targetBitrate)
-      setInteger(MediaFormat.KEY_FRAME_RATE, fps.toInt())
+      setInteger(MediaFormat.KEY_FRAME_RATE, fps.toInt().coerceAtLeast(1))
       setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
     }
 
@@ -541,12 +604,12 @@ object WalkbarVideoExporter {
           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             retriever.getScaledFrameAtTime(
               frameTimestampUs,
-              MediaMetadataRetriever.OPTION_CLOSEST,
+              MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
               width,
               height
-            ) ?: retriever.getFrameAtTime(frameTimestampUs, MediaMetadataRetriever.OPTION_CLOSEST)
+            ) ?: retriever.getFrameAtTime(frameTimestampUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
           } else {
-            retriever.getFrameAtTime(frameTimestampUs, MediaMetadataRetriever.OPTION_CLOSEST)
+            retriever.getFrameAtTime(frameTimestampUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
           }
         } catch (_: Exception) {
           null
@@ -588,6 +651,7 @@ object WalkbarVideoExporter {
 
         eglEncoder.renderBitmapFrame(compositeBitmap, ptsNs, width, height)
 
+        // Drain encoder
         videoTrackIndex = drainEncoder(
           encoder = encoder,
           bufferInfo = bufferInfo,
@@ -595,7 +659,8 @@ object WalkbarVideoExporter {
           currentVideoTrackIndex = videoTrackIndex,
           isMuxerStarted = muxerStarted,
           audioFormat = audioFormat,
-          firstVideoPtsHolder = firstVideoPtsHolder
+          firstVideoPtsHolder = firstVideoPtsHolder,
+          onSamplesWritten = { videoSamplesWritten += it }
         ) { vTrack, aTrack ->
           videoTrackIndex = vTrack
           audioTrackIndex = aTrack
@@ -612,10 +677,11 @@ object WalkbarVideoExporter {
       encoder.signalEndOfInputStream()
 
       var eos = false
-      while (!eos) {
-        val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
+      var waitAttempts = 0
+      while (!eos && waitAttempts < 30) {
+        val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000L)
         if (outIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
-          break
+          waitAttempts++
         } else if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
           if (!muxerStarted) {
             videoTrackIndex = muxer.addTrack(encoder.outputFormat)
@@ -630,7 +696,7 @@ object WalkbarVideoExporter {
             bufferInfo.size = 0
           }
           val encodedData = encoder.getOutputBuffer(outIndex)
-          if (encodedData != null && bufferInfo.size > 0 && muxerStarted) {
+          if (encodedData != null && bufferInfo.size > 0 && muxerStarted && videoTrackIndex >= 0) {
             if (firstVideoPtsHolder[0] < 0L) {
               firstVideoPtsHolder[0] = bufferInfo.presentationTimeUs
             }
@@ -638,6 +704,7 @@ object WalkbarVideoExporter {
             encodedData.position(bufferInfo.offset)
             encodedData.limit(bufferInfo.offset + bufferInfo.size)
             muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
+            videoSamplesWritten++
           }
           if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
             eos = true
@@ -653,20 +720,17 @@ object WalkbarVideoExporter {
 
       onFinalizing()
     } finally {
-      try {
-        eglEncoder.release()
-        encoder.stop()
-        encoder.release()
-        inputSurface.release()
-        retriever.release()
-        audioExtractor?.release()
-        if (muxerStarted) {
-          muxer.stop()
-          muxer.release()
-        }
-      } catch (e: Exception) {
-        e.printStackTrace()
+      runCatching { encoder.stop() }
+      runCatching { encoder.release() }
+      runCatching { eglEncoder.release() }
+      runCatching { inputSurface.release() }
+      runCatching { retriever.release() }
+      runCatching { audioExtractor?.release() }
+
+      if (muxerStarted && videoSamplesWritten > 0) {
+        runCatching { muxer.stop() }
       }
+      runCatching { muxer.release() }
     }
   }
 
@@ -706,7 +770,9 @@ object WalkbarVideoExporter {
       audioBufferInfo.flags = flags
 
       if (audioBufferInfo.presentationTimeUs <= durationMs * 1000L) {
-        muxer.writeSampleData(audioTrackIndex, audioBuffer, audioBufferInfo)
+        try {
+          muxer.writeSampleData(audioTrackIndex, audioBuffer, audioBufferInfo)
+        } catch (_: Exception) {}
       }
       audioExtractor.advance()
     }
@@ -720,6 +786,7 @@ object WalkbarVideoExporter {
     isMuxerStarted: Boolean,
     audioFormat: MediaFormat?,
     firstVideoPtsHolder: LongArray,
+    onSamplesWritten: (Int) -> Unit = {},
     onMuxerStarted: (Int, Int) -> Unit
   ): Int {
     var muxerStarted = isMuxerStarted
@@ -727,7 +794,7 @@ object WalkbarVideoExporter {
     var audioTrackIndex = -1
 
     while (true) {
-      val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 0)
+      val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 0L)
       if (outIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
         break
       } else if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
@@ -752,7 +819,10 @@ object WalkbarVideoExporter {
           bufferInfo.presentationTimeUs = (bufferInfo.presentationTimeUs - firstVideoPtsHolder[0]).coerceAtLeast(0L)
           encodedData.position(bufferInfo.offset)
           encodedData.limit(bufferInfo.offset + bufferInfo.size)
-          muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
+          try {
+            muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
+            onSamplesWritten(1)
+          } catch (_: Exception) {}
         }
         encoder.releaseOutputBuffer(outIndex, false)
       }
