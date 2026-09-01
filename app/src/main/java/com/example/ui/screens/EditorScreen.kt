@@ -4,9 +4,6 @@ package com.example.ui.screens
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -20,12 +17,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,22 +31,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.VerticalSplit
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -64,7 +57,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
@@ -88,8 +81,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -105,26 +98,23 @@ import com.example.characters.WalkCycleMath
 import com.example.model.AnimationBehavior
 import com.example.model.CharacterOverlayConfig
 import com.example.model.CharacterSizePreset
-import com.example.model.ObjectCategory
+import com.example.model.ExportFpsOption
 import com.example.model.VideoMetadata
 import com.example.player.WalkbarPlayerManager
-import com.example.ui.components.CharacterAvatarCard
+import com.example.ui.components.AboutAppSheet
 import com.example.ui.components.InstagramOverlayGuide
 import com.example.ui.components.SleekCharacterPicker
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.AccentGreen
 import com.example.ui.theme.AccentIndigo
-import com.example.ui.theme.AccentIndigoActive
 import com.example.ui.theme.AccentIndigoLight
 import com.example.ui.theme.AccentIndigoMuted
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkBorderSubtle
-import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceCard
 import com.example.ui.theme.DarkSurfaceElevated
-import com.example.ui.theme.DarkSurfaceHover
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -142,6 +132,7 @@ fun EditorScreen(
   onHorizontalRangeChanged: (Float, Float) -> Unit,
   onToggleReverseDirection: () -> Unit,
   onToggleInstagramGuide: () -> Unit,
+  onExportFpsOptionChanged: (ExportFpsOption) -> Unit,
   onBackClicked: () -> Unit,
   onExportClicked: () -> Unit,
   modifier: Modifier = Modifier
@@ -158,8 +149,15 @@ fun EditorScreen(
   }
 
   var selectedTab by remember { mutableIntStateOf(0) }
-  var isSplitScreenMode by remember { mutableStateOf(false) }
-  val tabs = listOf("Character", "Movement & Speed", "Position & Size", "Specs & Save")
+  var isCleanPreviewMode by remember { mutableStateOf(false) }
+  var showAboutSheet by remember { mutableStateOf(false) }
+
+  val tabs = listOf(
+    "Companion",
+    "Locomotion & FPS",
+    "Size & Height",
+    "Specs & Engine"
+  )
 
   DisposableEffect(Unit) {
     onDispose {
@@ -177,14 +175,14 @@ fun EditorScreen(
       title = {
         Column {
           Text(
-            text = if (isSplitScreenMode) "Split-Screen Tuning" else "Walkbar Editor",
+            text = "Walkbar Studio",
             fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             color = TextPrimary,
             letterSpacing = (-0.2).sp
           )
           Text(
-            text = metadata.fileName,
+            text = "${selectedCharacter.name} • ${metadata.fileName}",
             fontSize = 11.sp,
             color = TextSecondary,
             maxLines = 1,
@@ -207,15 +205,27 @@ fun EditorScreen(
         }
       },
       actions = {
-        // Split-Screen Mode Toggle
+        // About App Sheet Button
         IconButton(
-          onClick = { isSplitScreenMode = !isSplitScreenMode },
-          modifier = Modifier.testTag("toggle_split_screen")
+          onClick = { showAboutSheet = true },
+          modifier = Modifier.testTag("editor_about_button")
         ) {
           Icon(
-            imageVector = if (isSplitScreenMode) Icons.Default.Fullscreen else Icons.Default.VerticalSplit,
-            contentDescription = if (isSplitScreenMode) "Single Screen View" else "Split Screen View",
-            tint = if (isSplitScreenMode) AccentIndigoLight else TextSecondary
+            imageVector = Icons.Default.Info,
+            contentDescription = "About App & Developer",
+            tint = TextSecondary
+          )
+        }
+
+        // Toggle Clean View vs Overlay
+        IconButton(
+          onClick = { isCleanPreviewMode = !isCleanPreviewMode },
+          modifier = Modifier.testTag("toggle_clean_preview")
+        ) {
+          Icon(
+            imageVector = if (isCleanPreviewMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+            contentDescription = if (isCleanPreviewMode) "Show Character Overlay" else "Hide Character (Clean)",
+            tint = if (isCleanPreviewMode) AccentAmber else TextSecondary
           )
         }
 
@@ -225,7 +235,7 @@ fun EditorScreen(
           modifier = Modifier.testTag("toggle_instagram_guide")
         ) {
           Icon(
-            imageVector = if (overlayConfig.showInstagramPreviewGuide) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+            imageVector = Icons.Default.Tune,
             contentDescription = "Toggle Timeline Reference Guide",
             tint = if (overlayConfig.showInstagramPreviewGuide) AccentIndigoLight else TextMuted
           )
@@ -254,7 +264,7 @@ fun EditorScreen(
           )
           Spacer(modifier = Modifier.width(6.dp))
           Text(
-            text = "SAVE",
+            text = "EXPORT",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.8.sp,
@@ -265,110 +275,67 @@ fun EditorScreen(
       colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
     )
 
-    // ─── 2. VIDEO VIEWPORT (SINGLE VIEW OR SPLIT-SCREEN VIEW) ───
+    // ─── 2. VIDEO VIEWPORT ───
     Box(
       contentAlignment = Alignment.Center,
       modifier = Modifier
         .fillMaxWidth()
-        .weight(1f)
+        .weight(1.05f)
         .background(Color(0xFF000000))
-        .padding(horizontal = if (isSplitScreenMode) 10.dp else 16.dp, vertical = 2.dp)
+        .padding(horizontal = 12.dp, vertical = 2.dp)
     ) {
-      if (isSplitScreenMode) {
-        // ─── DUAL SPLIT-SCREEN VIEW (ORIGINAL ON TOP, OVERLAY ON BOTTOM) ───
-        Column(
-          verticalArrangement = Arrangement.spacedBy(8.dp),
+      BoxWithConstraints(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxSize()
+      ) {
+        val videoAspect = metadata.aspectRatio.coerceIn(0.4f, 2.4f)
+        val containerAspect = maxWidth / maxHeight
+
+        val (contentWidth, contentHeight) = if (containerAspect > videoAspect) {
+          Pair(maxHeight * videoAspect, maxHeight)
+        } else {
+          Pair(maxWidth, maxWidth / videoAspect)
+        }
+
+        Box(
           modifier = Modifier
-            .fillMaxSize()
-            .testTag("split_screen_container")
-        ) {
-          // TOP PANE: ORIGINAL VIDEO (CLEAN)
-          Box(
-            modifier = Modifier
-              .fillMaxWidth()
-              .weight(1f)
-              .clip(RoundedCornerShape(16.dp))
-              .border(1.dp, DarkBorderSubtle, RoundedCornerShape(16.dp))
-              .background(Color(0xFF101014))
-              .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-              ) {
-                playerManager.togglePlayPause()
-              }
-          ) {
-            AndroidView(
-              factory = { ctx ->
-                PlayerView(ctx).apply {
-                  player = playerManager.getPlayer()
-                  useController = false
-                  resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                  layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                  )
-                }
-              },
-              update = { playerView ->
-                playerView.player = playerManager.getPlayer()
-              },
-              modifier = Modifier.fillMaxSize()
-            )
-
-            // Top Badge
-            Surface(
-              color = Color(0x99000000),
-              shape = RoundedCornerShape(8.dp),
-              border = BorderStroke(0.5.dp, Color(0x33FFFFFF)),
-              modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
+            .size(contentWidth, contentHeight)
+            .shadow(20.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, DarkBorderSubtle, RoundedCornerShape(20.dp))
+            .background(Color(0xFF101014))
+            .clickable(
+              interactionSource = remember { MutableInteractionSource() },
+              indication = null
             ) {
-              Text(
-                text = "1. ORIGINAL VIDEO (CLEAN)",
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp,
-                color = Color.White,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-              )
+              playerManager.togglePlayPause()
             }
-          }
-
-          // BOTTOM PANE: OVERLAY PREVIEW (WITH WALKING SPRITE)
-          Box(
-            modifier = Modifier
-              .fillMaxWidth()
-              .weight(1f)
-              .clip(RoundedCornerShape(16.dp))
-              .border(1.5.dp, AccentIndigo.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-              .background(Color(0xFF101014))
-              .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-              ) {
-                playerManager.togglePlayPause()
+        ) {
+          // Media3 ExoPlayer View
+          AndroidView(
+            factory = { ctx ->
+              PlayerView(ctx).apply {
+                player = playerManager.getPlayer()
+                useController = false
+                setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                layoutParams = FrameLayout.LayoutParams(
+                  ViewGroup.LayoutParams.MATCH_PARENT,
+                  ViewGroup.LayoutParams.MATCH_PARENT
+                )
               }
-          ) {
-            AndroidView(
-              factory = { ctx ->
-                PlayerView(ctx).apply {
-                  player = playerManager.getPlayer()
-                  useController = false
-                  resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                  layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                  )
-                }
-              },
-              update = { playerView ->
-                playerView.player = playerManager.getPlayer()
-              },
-              modifier = Modifier.fillMaxSize()
-            )
+            },
+            update = { playerView ->
+              val currentPlayer = playerManager.getPlayer()
+              if (playerView.player != currentPlayer) {
+                playerView.player = currentPlayer
+              }
+            },
+            modifier = Modifier.fillMaxSize()
+          )
 
-            // Character Overlay
+          // Walking Companion Overlay Canvas with Liquid Smooth Motion
+          if (!isCleanPreviewMode) {
             Canvas(modifier = Modifier.fillMaxSize()) {
               CharacterRenderer.renderInCompose(
                 drawScope = this,
@@ -379,159 +346,71 @@ fun EditorScreen(
                 isPlaying = isPlaying
               )
             }
+          }
 
-            // Optional Instagram Guide Overlay
-            if (overlayConfig.showInstagramPreviewGuide) {
-              InstagramOverlayGuide(
-                progress = currentProgress,
-                modifier = Modifier.fillMaxSize()
-              )
-            }
+          // Optional Instagram Reel / Shorts Guide simulation overlay
+          if (overlayConfig.showInstagramPreviewGuide) {
+            InstagramOverlayGuide(
+              progress = currentProgress,
+              modifier = Modifier.fillMaxSize()
+            )
+          }
 
-            // Bottom Overlay Badge
+          // Video Specs Glass Badge
+          Surface(
+            color = Color(0x88000000),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(0.5.dp, Color(0x33FFFFFF)),
+            modifier = Modifier
+              .align(Alignment.TopEnd)
+              .padding(8.dp)
+          ) {
+            Text(
+              text = "${metadata.effectiveWidth}×${metadata.effectiveHeight} • ${metadata.formattedFps}",
+              fontSize = 9.5.sp,
+              fontFamily = FontFamily.Monospace,
+              fontWeight = FontWeight.Medium,
+              color = TextSecondary,
+              modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+            )
+          }
+
+          // Clean mode badge
+          if (isCleanPreviewMode) {
             Surface(
-              color = Color(0xCC1E1B4B),
+              color = AccentAmber.copy(alpha = 0.85f),
               shape = RoundedCornerShape(8.dp),
-              border = BorderStroke(0.5.dp, AccentIndigoLight),
               modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(8.dp)
             ) {
               Text(
-                text = "2. WALKING OVERLAY PREVIEW",
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp,
-                color = AccentIndigoLight,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-              )
-            }
-
-            // Quick live tuning parameters glass pill
-            Surface(
-              color = Color(0x88000000),
-              shape = RoundedCornerShape(8.dp),
-              modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp)
-            ) {
-              Text(
-                text = "Size: ${(overlayConfig.customScalePercent * 100).toInt()}% • Y: ${(overlayConfig.verticalOffsetPercent * 100).toInt()}%",
+                text = "CLEAN ORIGINAL PREVIEW",
                 fontSize = 9.sp,
-                fontFamily = FontFamily.Monospace,
-                color = TextSecondary,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
               )
             }
           }
-        }
-      } else {
-        // ─── STANDARD SINGLE VIEWPORT ───
-        BoxWithConstraints(
-          contentAlignment = Alignment.Center,
-          modifier = Modifier.fillMaxSize()
-        ) {
-          val videoAspect = metadata.aspectRatio.coerceIn(0.4f, 2.4f)
-          val containerAspect = maxWidth / maxHeight
 
-          val (contentWidth, contentHeight) = if (containerAspect > videoAspect) {
-            Pair(maxHeight * videoAspect, maxHeight)
-          } else {
-            Pair(maxWidth, maxWidth / videoAspect)
-          }
-
-          Box(
-            modifier = Modifier
-              .size(contentWidth, contentHeight)
-              .shadow(24.dp, RoundedCornerShape(24.dp))
-              .clip(RoundedCornerShape(24.dp))
-              .border(1.dp, DarkBorderSubtle, RoundedCornerShape(24.dp))
-              .background(Color(0xFF141416))
-              .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-              ) {
-                playerManager.togglePlayPause()
-              }
-          ) {
-            // Media3 ExoPlayer View
-            AndroidView(
-              factory = { ctx ->
-                PlayerView(ctx).apply {
-                  player = playerManager.getPlayer()
-                  useController = false
-                  resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                  layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                  )
-                }
-              },
-              update = { playerView ->
-                playerView.player = playerManager.getPlayer()
-              },
-              modifier = Modifier.fillMaxSize()
-            )
-
-            // Character Overlay Canvas
-            Canvas(
-              modifier = Modifier.fillMaxSize()
-            ) {
-              CharacterRenderer.renderInCompose(
-                drawScope = this,
-                character = selectedCharacter,
-                config = overlayConfig,
-                currentTimeMs = currentPositionMs,
-                durationMs = effectiveDurationMs,
-                isPlaying = isPlaying
-              )
-            }
-
-            // Optional Instagram Reel Guide simulation overlay
-            if (overlayConfig.showInstagramPreviewGuide) {
-              InstagramOverlayGuide(
-                progress = currentProgress,
-                modifier = Modifier.fillMaxSize()
-              )
-            }
-
-            // Video Specs Glass Badge
-            Surface(
-              color = Color(0x73000000),
-              shape = RoundedCornerShape(8.dp),
-              border = BorderStroke(0.5.dp, Color(0x33FFFFFF)),
+          // Play / Pause center feedback indicator
+          if (!isPlaying) {
+            Box(
+              contentAlignment = Alignment.Center,
               modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(10.dp)
+                .align(Alignment.Center)
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(Color(0x99000000))
+                .border(1.dp, Color(0x33FFFFFF), CircleShape)
             ) {
-              Text(
-                text = "${metadata.effectiveWidth} × ${metadata.effectiveHeight} • ${metadata.formattedFps}",
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium,
-                color = TextSecondary,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+              Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Play",
+                tint = Color.White,
+                modifier = Modifier.size(30.dp)
               )
-            }
-
-            // Play / Pause center feedback indicator
-            if (!isPlaying) {
-              Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                  .align(Alignment.Center)
-                  .size(56.dp)
-                  .clip(CircleShape)
-                  .background(Color(0x99000000))
-                  .border(1.dp, Color(0x33FFFFFF), CircleShape)
-              ) {
-                Icon(
-                  imageVector = Icons.Default.PlayArrow,
-                  contentDescription = "Play",
-                  tint = Color.White,
-                  modifier = Modifier.size(32.dp)
-                )
-              }
             }
           }
         }
@@ -547,12 +426,12 @@ fun EditorScreen(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 2.dp)
+          .padding(horizontal = 14.dp, vertical = 2.dp)
       ) {
         IconButton(
           onClick = { playerManager.togglePlayPause() },
           modifier = Modifier
-            .size(36.dp)
+            .size(34.dp)
             .testTag("play_pause_button")
         ) {
           Icon(
@@ -564,7 +443,6 @@ fun EditorScreen(
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        // Time Indicator
         val currentSec = (currentPositionMs / 1000).toInt()
         val totalSec = (effectiveDurationMs / 1000).toInt()
         val timeLabel = String.format("%d:%02d / %d:%02d", currentSec / 60, currentSec % 60, totalSec / 60, totalSec % 60)
@@ -575,10 +453,9 @@ fun EditorScreen(
           fontWeight = FontWeight.Medium,
           fontFamily = FontFamily.Monospace,
           color = TextSecondary,
-          modifier = Modifier.width(82.dp)
+          modifier = Modifier.width(80.dp)
         )
 
-        // Seek Slider
         Slider(
           value = currentProgress,
           onValueChange = { normPos ->
@@ -597,21 +474,19 @@ fun EditorScreen(
       }
     }
 
-    // ─── 4. SLEEK COMPACT BOTTOM CONTROLS PANEL ───
+    // ─── 4. BEAUTIFUL SCROLLABLE SETTINGS MENU ───
     Surface(
       color = DarkSurfaceElevated,
-      shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+      shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
       border = BorderStroke(1.dp, DarkBorder),
       modifier = Modifier
         .fillMaxWidth()
-        .heightIn(max = 190.dp)
+        .weight(0.95f)
     ) {
       Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(top = 4.dp, bottom = 8.dp)
+        modifier = Modifier.fillMaxSize()
       ) {
-        // Tab Headers
+        // Tab Headers Row
         ScrollableTabRow(
           selectedTabIndex = selectedTab,
           containerColor = DarkSurfaceElevated,
@@ -621,7 +496,7 @@ fun EditorScreen(
             TabRowDefaults.SecondaryIndicator(
               Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
               color = AccentIndigo,
-              height = 2.dp
+              height = 3.dp
             )
           },
           divider = {}
@@ -633,8 +508,8 @@ fun EditorScreen(
               text = {
                 Text(
                   text = title,
-                  fontSize = 12.sp,
-                  fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
+                  fontSize = 12.5.sp,
+                  fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
                   color = if (selectedTab == index) TextPrimary else TextMuted
                 )
               }
@@ -642,24 +517,106 @@ fun EditorScreen(
           }
         }
 
-        // Tab Contents
-        Box(
+        // Scrollable Tab Body
+        val scrollState = rememberScrollState()
+        Column(
           modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
           when (selectedTab) {
+            // ─── TAB 0: COMPANION & CATEGORIES ───
             0 -> {
-              // TAB 1: Sleek Character Picker with Category Filtering
               SleekCharacterPicker(
                 selectedCharacterId = overlayConfig.characterId,
                 behavior = overlayConfig.behavior,
                 onCharacterSelected = onCharacterSelected
               )
+
+              // Active Companion Spotlight Detail Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+                ) {
+                  // Mini preview Canvas
+                  Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                      .size(54.dp)
+                      .clip(RoundedCornerShape(12.dp))
+                      .background(AccentIndigoMuted)
+                      .border(1.dp, AccentIndigoLight, RoundedCornerShape(12.dp))
+                  ) {
+                    Canvas(modifier = Modifier.size(42.dp)) {
+                      val w = size.width
+                      val h = size.height
+                      val charSize = h * 0.8f
+                      val phase = ((currentPositionMs % 480L).toFloat() / 480f)
+                      drawContext.canvas.nativeCanvas.let { canvas ->
+                        CharacterRenderer.drawCharacter(
+                          canvas = canvas,
+                          character = selectedCharacter,
+                          behavior = overlayConfig.behavior,
+                          centerX = w * 0.5f,
+                          bottomY = h * 0.88f,
+                          size = charSize,
+                          phase = phase,
+                          facingRight = true,
+                          currentTimeMs = currentPositionMs
+                        )
+                      }
+                    }
+                  }
+
+                  Spacer(modifier = Modifier.width(12.dp))
+
+                  Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                      Text(
+                        text = selectedCharacter.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                      )
+                      Spacer(modifier = Modifier.width(6.dp))
+                      Surface(
+                        color = Color(0x336366F1),
+                        shape = RoundedCornerShape(6.dp)
+                      ) {
+                        Text(
+                          text = selectedCharacter.category.displayName,
+                          fontSize = 9.5.sp,
+                          color = AccentIndigoLight,
+                          fontWeight = FontWeight.SemiBold,
+                          modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                      }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                      text = selectedCharacter.description,
+                      fontSize = 11.sp,
+                      color = TextSecondary,
+                      maxLines = 2,
+                      overflow = TextOverflow.Ellipsis
+                    )
+                  }
+                }
+              }
             }
 
+            // ─── TAB 1: MOVEMENT & LOCOMOTION GAIT & EXPORT FPS ───
             1 -> {
-              // TAB 2: Movement & Locomotion Gait selector
               val effectiveStepMs = WalkCycleMath.getEffectiveStepDurationMs(
                 behavior = overlayConfig.behavior,
                 durationMs = effectiveDurationMs,
@@ -668,87 +625,47 @@ fun EditorScreen(
                 canvasHeight = metadata.effectiveHeight.toFloat()
               )
               val cadenceHz = WalkCycleMath.calculateCadenceStepsPerSecond(effectiveStepMs)
+              val velocityPxSec = WalkCycleMath.calculateHorizontalVelocityPxPerSec(
+                durationMs = effectiveDurationMs,
+                config = overlayConfig,
+                canvasWidth = metadata.effectiveWidth.toFloat()
+              )
 
-              Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+              Text(
+                text = "LOCOMOTION GAIT STYLE",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMuted,
+                letterSpacing = 0.6.sp
+              )
+
+              LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
               ) {
-                LazyRow(
-                  horizontalArrangement = Arrangement.spacedBy(6.dp),
-                  modifier = Modifier.fillMaxWidth()
-                ) {
-                  items(AnimationBehavior.entries.toTypedArray(), key = { it.name }) { behavior ->
-                    val isSelected = overlayConfig.behavior == behavior
-                    FilterChip(
-                      selected = isSelected,
-                      onClick = { onBehaviorChanged(behavior) },
-                      label = {
-                        Text(
-                          text = behavior.displayName,
-                          fontSize = 11.sp,
-                          fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                      },
-                      shape = RoundedCornerShape(8.dp),
-                      leadingIcon = {
-                        val icon = when (behavior) {
-                          AnimationBehavior.PACE_SYNC -> Icons.Default.Sync
-                          AnimationBehavior.WALK -> Icons.Default.DirectionsWalk
-                          AnimationBehavior.STROLL -> Icons.Default.DirectionsWalk
-                          AnimationBehavior.RUN -> Icons.Default.DirectionsRun
-                          AnimationBehavior.SPRINT -> Icons.Default.FastForward
-                          AnimationBehavior.HOP -> Icons.Default.Pets
-                        }
-                        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
-                      },
-                      colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AccentIndigo,
-                        selectedLabelColor = Color.White,
-                        selectedLeadingIconColor = Color.White,
-                        containerColor = DarkSurfaceCard,
-                        labelColor = TextSecondary
-                      ),
-                      border = FilterChipDefaults.filterChipBorder(
-                        borderColor = DarkBorder,
-                        selectedBorderColor = AccentIndigo,
-                        enabled = true,
-                        selected = isSelected
-                      )
-                    )
-                  }
-                }
-
-                // Stride & Direction summary
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                  modifier = Modifier.fillMaxWidth()
-                ) {
-                  Surface(
-                    color = DarkSurfaceCard,
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, DarkBorder)
-                  ) {
-                    Text(
-                      text = String.format("⚡ Cadence: %.1f st/s • Step: %dms", cadenceHz, effectiveStepMs),
-                      fontSize = 10.5.sp,
-                      color = TextSecondary,
-                      modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                  }
-
+                items(AnimationBehavior.entries.toTypedArray(), key = { it.name }) { behavior ->
+                  val isSelected = overlayConfig.behavior == behavior
                   FilterChip(
-                    selected = overlayConfig.reverseDirection,
-                    onClick = onToggleReverseDirection,
-                    shape = RoundedCornerShape(8.dp),
+                    selected = isSelected,
+                    onClick = { onBehaviorChanged(behavior) },
                     label = {
                       Text(
-                        text = if (overlayConfig.reverseDirection) "Right ➡ Left" else "Left ➡ Right",
-                        fontSize = 10.5.sp
+                        text = behavior.displayName,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                       )
                     },
+                    shape = RoundedCornerShape(10.dp),
                     leadingIcon = {
-                      Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(13.dp))
+                      val icon = when (behavior) {
+                        AnimationBehavior.PACE_SYNC -> Icons.Default.Sync
+                        AnimationBehavior.WALK -> Icons.Default.DirectionsWalk
+                        AnimationBehavior.STROLL -> Icons.Default.DirectionsWalk
+                        AnimationBehavior.RUN -> Icons.Default.DirectionsRun
+                        AnimationBehavior.SPRINT -> Icons.Default.FastForward
+                        AnimationBehavior.HOP -> Icons.Default.Pets
+                      }
+                      Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
                     },
                     colors = FilterChipDefaults.filterChipColors(
                       selectedContainerColor = AccentIndigo,
@@ -761,166 +678,531 @@ fun EditorScreen(
                       borderColor = DarkBorder,
                       selectedBorderColor = AccentIndigo,
                       enabled = true,
-                      selected = overlayConfig.reverseDirection
+                      selected = isSelected
+                    )
+                  )
+                }
+              }
+
+              // Export Framerate & Smoothness Selector
+              Text(
+                text = "EXPORT FRAMERATE & 3D SMOOTHNESS",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMuted,
+                letterSpacing = 0.6.sp
+              )
+
+              Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                ExportFpsOption.entries.forEach { option ->
+                  val isSelected = overlayConfig.exportFpsOption == option
+                  Surface(
+                    color = if (isSelected) AccentIndigo else DarkSurfaceCard,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, if (isSelected) AccentIndigoLight else DarkBorder),
+                    modifier = Modifier
+                      .weight(1f)
+                      .clickable { onExportFpsOptionChanged(option) }
+                  ) {
+                    Column(
+                      horizontalAlignment = Alignment.CenterHorizontally,
+                      modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
+                    ) {
+                      Text(
+                        text = option.displayName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Color.White else TextPrimary,
+                        maxLines = 1
+                      )
+                      Text(
+                        text = if (option == ExportFpsOption.FPS_60) "Max 3D Smooth" else if (option == ExportFpsOption.AUTO) "Native" else if (option == ExportFpsOption.FPS_30) "Fast" else "Max Phone",
+                        fontSize = 9.sp,
+                        color = if (isSelected) Color.White.copy(alpha = 0.85f) else TextMuted,
+                        maxLines = 1
+                      )
+                    }
+                  }
+                }
+              }
+
+              // Walk Direction & Cadence Telemetry Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Text(
+                      text = "Walking Direction",
+                      fontSize = 12.sp,
+                      fontWeight = FontWeight.Medium,
+                      color = TextSecondary
+                    )
+
+                    FilterChip(
+                      selected = overlayConfig.reverseDirection,
+                      onClick = onToggleReverseDirection,
+                      shape = RoundedCornerShape(8.dp),
+                      label = {
+                        Text(
+                          text = if (overlayConfig.reverseDirection) "Right ➡ Left" else "Left ➡ Right",
+                          fontSize = 11.sp,
+                          fontWeight = FontWeight.SemiBold
+                        )
+                      },
+                      leadingIcon = {
+                        Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
+                      },
+                      colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = AccentIndigo,
+                        selectedLabelColor = Color.White,
+                        selectedLeadingIconColor = Color.White,
+                        containerColor = DarkSurfaceElevated,
+                        labelColor = TextSecondary
+                      ),
+                      border = FilterChipDefaults.filterChipBorder(
+                        borderColor = DarkBorder,
+                        selectedBorderColor = AccentIndigo,
+                        enabled = true,
+                        selected = overlayConfig.reverseDirection
+                      )
+                    )
+                  }
+
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    modifier = Modifier
+                      .fillMaxWidth()
+                      .padding(top = 4.dp)
+                  ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                      Text("Cadence", fontSize = 9.5.sp, color = TextMuted)
+                      Text(
+                        text = String.format("%.1f st/s", cadenceHz),
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentIndigoLight
+                      )
+                    }
+
+                    Box(
+                      modifier = Modifier
+                        .width(1.dp)
+                        .height(24.dp)
+                        .background(DarkBorder)
+                    )
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                      Text("Step Cycle", fontSize = 9.5.sp, color = TextMuted)
+                      Text(
+                        text = "${effectiveStepMs}ms",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                      )
+                    }
+
+                    Box(
+                      modifier = Modifier
+                        .width(1.dp)
+                        .height(24.dp)
+                        .background(DarkBorder)
+                    )
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                      Text("Velocity", fontSize = 9.5.sp, color = TextMuted)
+                      Text(
+                        text = String.format("%.0f px/s", velocityPxSec),
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan
+                      )
+                    }
+                  }
+                }
+              }
+
+              // Range Sliders (Start X & End X)
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Text(
+                      text = "Horizontal Movement Span",
+                      fontSize = 12.sp,
+                      fontWeight = FontWeight.Medium,
+                      color = TextSecondary
+                    )
+
+                    Text(
+                      text = "${(overlayConfig.startXPercent * 100).toInt()}% ➡ ${(overlayConfig.endXPercent * 100).toInt()}%",
+                      fontSize = 11.sp,
+                      fontFamily = FontFamily.Monospace,
+                      color = AccentIndigoLight
+                    )
+                  }
+
+                  RangeSlider(
+                    value = overlayConfig.startXPercent..overlayConfig.endXPercent,
+                    onValueChange = { range ->
+                      onHorizontalRangeChanged(range.start, range.endInclusive)
+                    },
+                    valueRange = 0.0f..1.0f,
+                    colors = SliderDefaults.colors(
+                      thumbColor = Color.White,
+                      activeTrackColor = AccentIndigo,
+                      inactiveTrackColor = DarkBorder
                     )
                   )
                 }
               }
             }
 
+            // ─── TAB 2: SIZE & POSITION ───
             2 -> {
-              // TAB 3: Position & Size with Quick Snap
-              Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+              Text(
+                text = "CHARACTER SCALE PRESETS",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMuted,
+                letterSpacing = 0.6.sp
+              )
+
+              LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
               ) {
-                // Size Scale Slider
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  modifier = Modifier.fillMaxWidth()
-                ) {
-                  Text(
-                    text = "SIZE",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMuted,
-                    modifier = Modifier.width(44.dp)
-                  )
-                  Slider(
-                    value = overlayConfig.customScalePercent,
-                    onValueChange = onCustomScaleChanged,
-                    valueRange = 0.02f..0.15f,
-                    colors = SliderDefaults.colors(
-                      thumbColor = Color.White,
-                      activeTrackColor = AccentIndigo,
-                      inactiveTrackColor = DarkBorder
+                items(CharacterSizePreset.entries.toTypedArray(), key = { it.name }) { preset ->
+                  val isSelected = overlayConfig.sizePreset == preset
+                  FilterChip(
+                    selected = isSelected,
+                    onClick = { onSizePresetChanged(preset) },
+                    shape = RoundedCornerShape(10.dp),
+                    label = { Text(preset.label, fontSize = 11.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                      selectedContainerColor = AccentIndigo,
+                      selectedLabelColor = Color.White,
+                      containerColor = DarkSurfaceCard,
+                      labelColor = TextSecondary
                     ),
-                    modifier = Modifier
-                      .weight(1f)
-                      .testTag("character_size_slider")
-                  )
-                  Text(
-                    text = "${(overlayConfig.customScalePercent * 100).toInt()}%",
-                    fontSize = 10.5.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = TextSecondary,
-                    modifier = Modifier.width(32.dp)
+                    border = FilterChipDefaults.filterChipBorder(
+                      borderColor = DarkBorder,
+                      selectedBorderColor = AccentIndigo,
+                      enabled = true,
+                      selected = isSelected
+                    )
                   )
                 }
+              }
 
-                // Vertical Height Slider
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  modifier = Modifier.fillMaxWidth()
+              // Fine-Tuning Controls Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                  Text(
-                    text = "HEIGHT",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMuted,
-                    modifier = Modifier.width(44.dp)
-                  )
-                  Slider(
-                    value = overlayConfig.verticalOffsetPercent,
-                    onValueChange = onVerticalOffsetChanged,
-                    valueRange = 0.00f..0.18f,
-                    colors = SliderDefaults.colors(
-                      thumbColor = Color.White,
-                      activeTrackColor = AccentIndigo,
-                      inactiveTrackColor = DarkBorder
-                    ),
-                    modifier = Modifier
-                      .weight(1f)
-                      .testTag("vertical_offset_slider")
-                  )
-                  Text(
-                    text = "${(overlayConfig.verticalOffsetPercent * 100).toInt()}%",
-                    fontSize = 10.5.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = TextSecondary,
-                    modifier = Modifier.width(32.dp)
-                  )
-                }
-
-                // Quick Snap Buttons
-                Row(
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                  verticalAlignment = Alignment.CenterVertically,
-                  modifier = Modifier.fillMaxWidth()
-                ) {
-                  Text(
-                    text = "Snap:",
-                    fontSize = 10.5.sp,
-                    color = TextMuted
-                  )
-                  Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                  // Precision Scale Slider
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
                     Text(
-                      text = "Standard Scrubber (3.8%)",
-                      fontSize = 10.5.sp,
-                      fontWeight = FontWeight.SemiBold,
-                      color = AccentIndigoLight,
+                      text = "SCALE",
+                      fontSize = 11.sp,
+                      fontWeight = FontWeight.Bold,
+                      color = TextMuted,
+                      modifier = Modifier.width(52.dp)
+                    )
+                    Slider(
+                      value = overlayConfig.customScalePercent,
+                      onValueChange = onCustomScaleChanged,
+                      valueRange = 0.02f..0.20f,
+                      colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = AccentIndigo,
+                        inactiveTrackColor = DarkBorder
+                      ),
                       modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
+                        .weight(1f)
+                        .testTag("character_size_slider")
+                    )
+                    Text(
+                      text = "${(overlayConfig.customScalePercent * 100).toInt()}%",
+                      fontSize = 11.sp,
+                      fontFamily = FontFamily.Monospace,
+                      fontWeight = FontWeight.Bold,
+                      color = TextPrimary,
+                      modifier = Modifier.width(36.dp)
+                    )
+                  }
+
+                  // Vertical Ground Offset Slider
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Text(
+                      text = "HEIGHT",
+                      fontSize = 11.sp,
+                      fontWeight = FontWeight.Bold,
+                      color = TextMuted,
+                      modifier = Modifier.width(52.dp)
+                    )
+                    Slider(
+                      value = overlayConfig.verticalOffsetPercent,
+                      onValueChange = onVerticalOffsetChanged,
+                      valueRange = 0.00f..0.22f,
+                      colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = AccentIndigo,
+                        inactiveTrackColor = DarkBorder
+                      ),
+                      modifier = Modifier
+                        .weight(1f)
+                        .testTag("vertical_offset_slider")
+                    )
+                    Text(
+                      text = "${(overlayConfig.verticalOffsetPercent * 100).toInt()}%",
+                      fontSize = 11.sp,
+                      fontFamily = FontFamily.Monospace,
+                      fontWeight = FontWeight.Bold,
+                      color = TextPrimary,
+                      modifier = Modifier.width(36.dp)
+                    )
+                  }
+                }
+              }
+
+              // Quick Snap Presets Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  Text(
+                    text = "🎯 Quick Timeline Snap Targets",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                  )
+
+                  Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Surface(
+                      color = DarkSurfaceElevated,
+                      shape = RoundedCornerShape(8.dp),
+                      border = BorderStroke(1.dp, AccentIndigoLight.copy(alpha = 0.4f)),
+                      modifier = Modifier
+                        .weight(1f)
                         .clickable { onVerticalOffsetChanged(0.038f) }
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                    Text(
-                      text = "Bottom Timeline (1.5%)",
-                      fontSize = 10.5.sp,
-                      fontWeight = FontWeight.SemiBold,
-                      color = AccentCyan,
+                    ) {
+                      Column(modifier = Modifier.padding(8.dp)) {
+                        Text("Reels / Shorts", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentIndigoLight)
+                        Text("3.8% Offset", fontSize = 9.sp, color = TextMuted)
+                      }
+                    }
+
+                    Surface(
+                      color = DarkSurfaceElevated,
+                      shape = RoundedCornerShape(8.dp),
+                      border = BorderStroke(1.dp, AccentCyan.copy(alpha = 0.4f)),
                       modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
+                        .weight(1f)
                         .clickable { onVerticalOffsetChanged(0.015f) }
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                    ) {
+                      Column(modifier = Modifier.padding(8.dp)) {
+                        Text("Bottom Track", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentCyan)
+                        Text("1.5% Offset", fontSize = 9.sp, color = TextMuted)
+                      }
+                    }
+
+                    Surface(
+                      color = DarkSurfaceElevated,
+                      shape = RoundedCornerShape(8.dp),
+                      border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f)),
+                      modifier = Modifier
+                        .weight(1f)
+                        .clickable { onVerticalOffsetChanged(0.075f) }
+                    ) {
+                      Column(modifier = Modifier.padding(8.dp)) {
+                        Text("Mid Horizon", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = AccentGreen)
+                        Text("7.5% Offset", fontSize = 9.sp, color = TextMuted)
+                      }
+                    }
                   }
                 }
               }
             }
 
+            // ─── TAB 3: VIDEO SPECS & TOOLS ───
             3 -> {
-              // TAB 4: Specs & Info
-              Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+              Text(
+                text = "VIDEO SPECIFICATIONS & ENGINE",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMuted,
+                letterSpacing = 0.6.sp
+              )
+
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
                 modifier = Modifier.fillMaxWidth()
               ) {
-                Row(
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                  modifier = Modifier.fillMaxWidth()
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                  Column(modifier = Modifier.weight(1f)) {
-                    Text("Original Video", fontSize = 9.5.sp, color = TextMuted)
-                    Text(
-                      text = "${metadata.effectiveWidth} × ${metadata.effectiveHeight} • ${metadata.formattedFps}",
-                      fontSize = 12.sp,
-                      fontWeight = FontWeight.Bold,
-                      color = TextPrimary
-                    )
-                  }
+                  Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                  ) {
+                    Column {
+                      Text("Resolution", fontSize = 9.5.sp, color = TextMuted)
+                      Text(
+                        text = "${metadata.effectiveWidth} × ${metadata.effectiveHeight}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                      )
+                    }
 
-                  Column(modifier = Modifier.weight(1f)) {
-                    Text("Hardware Encoder", fontSize = 9.5.sp, color = AccentIndigoLight)
-                    Text(
-                      text = "H.264 / AVC 30FPS • Audio Synced",
-                      fontSize = 12.sp,
-                      fontWeight = FontWeight.Bold,
-                      color = TextPrimary
-                    )
+                    Column {
+                      Text("Framerate", fontSize = 9.5.sp, color = TextMuted)
+                      Text(
+                        text = metadata.formattedFps,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentIndigoLight
+                      )
+                    }
+
+                    Column {
+                      Text("Bitrate", fontSize = 9.5.sp, color = TextMuted)
+                      Text(
+                        text = metadata.formattedBitrate,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan
+                      )
+                    }
+
+                    Column {
+                      Text("Audio", fontSize = 9.5.sp, color = TextMuted)
+                      Text(
+                        text = if (metadata.hasAudio) "Passthrough" else "None",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (metadata.hasAudio) AccentGreen else TextMuted
+                      )
+                    }
                   }
                 }
+              }
 
-                Text(
-                  text = "Burned character frames are composited directly via hardware surface encoding with exact presentation timestamps.",
-                  fontSize = 10.5.sp,
-                  color = TextMuted,
-                  lineHeight = 14.sp
-                )
+              // Hardware Acceleration Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Column(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentIndigoLight, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                      text = "MediaCodec EGL Hardware Encoding",
+                      fontSize = 12.sp,
+                      fontWeight = FontWeight.Bold,
+                      color = TextPrimary
+                    )
+                  }
+                  Text(
+                    text = "Exports bit-for-bit with hardware surface encoding and native Presentation Time Stamps (PTS), ensuring exported video length and frame rate match your source video flawlessly.",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    lineHeight = 15.sp
+                  )
+                }
+              }
+
+              // Reset Button
+              OutlinedButton(
+                onClick = {
+                  onCustomScaleChanged(selectedCharacter.defaultScale)
+                  onVerticalOffsetChanged(selectedCharacter.recommendedVerticalOffsetPercent)
+                  onHorizontalRangeChanged(0.0f, 1.0f)
+                },
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Icon(Icons.Default.RestartAlt, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Reset All Sliders to Companion Defaults", fontSize = 12.sp, color = TextSecondary)
               }
             }
           }
         }
       }
     }
+  }
+
+  if (showAboutSheet) {
+    AboutAppSheet(onDismissRequest = { showAboutSheet = false })
   }
 }

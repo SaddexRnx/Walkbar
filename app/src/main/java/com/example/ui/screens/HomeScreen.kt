@@ -1,9 +1,13 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.example.ui.screens
 
-import android.Manifest
-import android.content.pm.PackageManager
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
-import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,16 +41,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,11 +60,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,28 +84,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import com.example.characters.CharacterRegistry
 import com.example.characters.CharacterRenderer
 import com.example.characters.WalkCycleMath
 import com.example.model.AnimationBehavior
 import com.example.model.CharacterOverlayConfig
 import com.example.model.ObjectCategory
+import com.example.ui.components.AboutAppSheet
 import com.example.ui.components.CharacterAvatarCard
-import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.AccentGreen
 import com.example.ui.theme.AccentIndigo
-import com.example.ui.theme.AccentIndigoActive
 import com.example.ui.theme.AccentIndigoLight
 import com.example.ui.theme.AccentIndigoMuted
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkBorder
-import com.example.ui.theme.DarkBorderSubtle
-import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceCard
 import com.example.ui.theme.DarkSurfaceElevated
-import com.example.ui.theme.DarkSurfaceHover
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -109,44 +108,15 @@ import com.example.ui.theme.TextSecondary
 @Composable
 fun HomeScreen(
   isLoading: Boolean,
-  overlayConfig: CharacterOverlayConfig = CharacterOverlayConfig(),
-  onCharacterSelected: (String) -> Unit = {},
-  onBehaviorChanged: (AnimationBehavior) -> Unit = {},
+  overlayConfig: CharacterOverlayConfig,
+  onCharacterSelected: (String) -> Unit,
+  onBehaviorChanged: (AnimationBehavior) -> Unit,
   onVideoSelected: (Uri) -> Unit,
   onSampleVideoRequested: () -> Unit,
   modifier: Modifier = Modifier
 ) {
   val context = LocalContext.current
-
-  // Check required permissions
-  val requiredPermissions = remember {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
-    } else {
-      arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-    }
-  }
-
-  var hasVideoPermission by remember {
-    mutableStateOf(
-      requiredPermissions.all { perm ->
-        ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
-      }
-    )
-  }
-
-  val permissionLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.RequestMultiplePermissions()
-  ) { results ->
-    hasVideoPermission = results.values.all { it }
-  }
-
-  // Request runtime permission on launch
-  LaunchedEffect(Unit) {
-    if (!hasVideoPermission) {
-      permissionLauncher.launch(requiredPermissions)
-    }
-  }
+  var showAboutSheet by remember { mutableStateOf(false) }
 
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
@@ -199,87 +169,119 @@ fun HomeScreen(
       modifier = Modifier
         .fillMaxSize()
         .verticalScroll(scrollState)
-        .padding(horizontal = 20.dp, vertical = 16.dp)
+        .padding(horizontal = 20.dp, vertical = 14.dp)
         .widthIn(max = 600.dp)
     ) {
-      Spacer(modifier = Modifier.height(6.dp))
-
-      // App Brand Pill
-      Surface(
-        color = DarkSurfaceElevated,
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, DarkBorder)
+      // ─── TOP BAR WITH ABOUT BUTTON ───
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth()
       ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        Surface(
+          color = DarkSurfaceElevated,
+          shape = RoundedCornerShape(20.dp),
+          border = BorderStroke(1.dp, DarkBorder)
         ) {
-          Box(
-            modifier = Modifier
-              .size(8.dp)
-              .clip(CircleShape)
-              .background(AccentIndigo)
-          )
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Video Timeline Companion",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = TextSecondary
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+          ) {
+            Box(
+              modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(AccentIndigo)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "Walkbar Studio",
+              fontSize = 11.5.sp,
+              fontWeight = FontWeight.SemiBold,
+              color = TextSecondary
+            )
+          }
+        }
+
+        IconButton(
+          onClick = { showAboutSheet = true },
+          modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(DarkSurfaceElevated)
+            .border(1.dp, DarkBorder, CircleShape)
+            .testTag("about_app_button")
+        ) {
+          Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = "About App & Developer",
+            tint = AccentIndigoLight,
+            modifier = Modifier.size(20.dp)
           )
         }
       }
 
-      Spacer(modifier = Modifier.height(14.dp))
+      Spacer(modifier = Modifier.height(16.dp))
 
-      // App Title & Tagline
+      // ─── HERO TITLE & BADGE ───
       Text(
         text = "Walkbar",
-        fontSize = 38.sp,
+        fontSize = 36.sp,
         fontWeight = FontWeight.Bold,
         color = TextPrimary,
         letterSpacing = (-0.8).sp
       )
 
-      Spacer(modifier = Modifier.height(6.dp))
+      Spacer(modifier = Modifier.height(4.dp))
 
       Text(
-        text = "Place animated character companions that walk across your video progress bar in real-time sync.",
-        fontSize = 14.sp,
+        text = "Sync animated character companions along your video timeline in real-time.",
+        fontSize = 13.5.sp,
         color = TextSecondary,
         textAlign = TextAlign.Center,
-        lineHeight = 20.sp,
-        modifier = Modifier.padding(horizontal = 12.dp)
+        lineHeight = 19.sp,
+        modifier = Modifier.padding(horizontal = 16.dp)
       )
 
       Spacer(modifier = Modifier.height(18.dp))
 
-      // ─── 1. COMPACT COMPANION SPRITE BOX & LIVE PROGRESS BAR ───
+      // ─── INTERACTIVE LIVE SIMULATION HERO CARD ───
       Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
         shape = RoundedCornerShape(22.dp),
         border = BorderStroke(1.dp, DarkBorder),
-        modifier = Modifier
-          .fillMaxWidth()
-          .testTag("home_character_selector_card")
+        modifier = Modifier.fillMaxWidth()
       ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp)
+        ) {
+          // Simulation Header Row
           Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
           ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-              Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = null,
-                tint = AccentIndigoLight,
-                modifier = Modifier.size(18.dp)
-              )
+              Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                  .size(22.dp)
+                  .clip(CircleShape)
+                  .background(AccentIndigoMuted)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.AutoAwesome,
+                  contentDescription = null,
+                  tint = AccentIndigoLight,
+                  modifier = Modifier.size(13.dp)
+                )
+              }
               Spacer(modifier = Modifier.width(8.dp))
               Text(
-                text = "Animated Companion Sprites",
-                fontSize = 14.sp,
+                text = "Live Timeline Preview",
+                fontSize = 12.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
               )
@@ -287,62 +289,39 @@ fun HomeScreen(
 
             Surface(
               color = AccentIndigoMuted,
-              shape = RoundedCornerShape(8.dp)
+              shape = RoundedCornerShape(6.dp)
             ) {
               Text(
-                text = "${CharacterRegistry.characters.size} Sprites",
-                fontSize = 10.5.sp,
+                text = "${activeCharacter.name} • ${overlayConfig.behavior.displayName}",
+                fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = AccentIndigoLight,
-                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
               )
             }
           }
 
-          Spacer(modifier = Modifier.height(12.dp))
+          Spacer(modifier = Modifier.height(10.dp))
 
-          // ─── COMPACT LIVE SIMULATOR BAR (Clean, proportional height) ───
+          // ─── SIMULATION STAGE (Black Glass Viewport) ───
           Box(
             modifier = Modifier
               .fillMaxWidth()
-              .height(86.dp)
-              .clip(RoundedCornerShape(16.dp))
+              .height(96.dp)
+              .clip(RoundedCornerShape(14.dp))
               .background(Color(0xFF0C0D11))
-              .border(1.dp, Color(0x336366F1), RoundedCornerShape(16.dp))
-              .padding(horizontal = 12.dp, vertical = 8.dp)
+              .border(1.dp, DarkBorder, RoundedCornerShape(14.dp))
+              .padding(horizontal = 10.dp, vertical = 6.dp)
           ) {
             Column(
               verticalArrangement = Arrangement.SpaceBetween,
               modifier = Modifier.fillMaxSize()
             ) {
-              // Header tag inside simulator: Clean and well-spaced character tag
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-              ) {
-                Text(
-                  text = "LIVE PROGRESS WALK PREVIEW",
-                  fontSize = 8.5.sp,
-                  fontWeight = FontWeight.Bold,
-                  letterSpacing = 0.8.sp,
-                  color = TextMuted
-                )
-                Text(
-                  text = "${activeCharacter.name} • ${overlayConfig.behavior.displayName}",
-                  fontSize = 10.sp,
-                  fontWeight = FontWeight.SemiBold,
-                  color = AccentIndigoLight,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis
-                )
-              }
-
-              // Canvas with the character walking along the simulated progress bar
+              // Active Character Animation Canvas
               Box(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .height(38.dp)
+                  .weight(1f)
               ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                   val canvasWidth = size.width
@@ -484,7 +463,7 @@ fun HomeScreen(
 
           Spacer(modifier = Modifier.height(12.dp))
 
-          // ─── LOCOMOTION & WALKING SPEED BEHAVIOR SELECTOR (Uniform equal-width buttons) ───
+          // ─── LOCOMOTION & WALKING SPEED BEHAVIOR SELECTOR ───
           Text(
             text = "GAIT / SPEED:",
             fontSize = 10.sp,
@@ -536,14 +515,14 @@ fun HomeScreen(
         }
       }
 
-      Spacer(modifier = Modifier.height(20.dp))
+      Spacer(modifier = Modifier.height(18.dp))
 
       // ─── PRIMARY ACTION BUTTONS (SELECT VIDEO / TRY SAMPLE) ───
       if (isLoading) {
         CircularProgressIndicator(
           color = AccentIndigo,
           modifier = Modifier
-            .size(48.dp)
+            .size(44.dp)
             .padding(8.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -604,7 +583,6 @@ fun HomeScreen(
           horizontalArrangement = Arrangement.spacedBy(8.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
-          // Browse All Files Button
           OutlinedButton(
             onClick = { filePickerLauncher.launch("video/*") },
             colors = ButtonDefaults.outlinedButtonColors(
@@ -619,14 +597,13 @@ fun HomeScreen(
               .testTag("browse_files_button")
           ) {
             Text(
-              text = "📁 Files / Storage",
+              text = "📁 Browse Files",
               fontSize = 12.sp,
               fontWeight = FontWeight.SemiBold,
               maxLines = 1
             )
           }
 
-          // Quick Start with Sample Video
           OutlinedButton(
             onClick = onSampleVideoRequested,
             colors = ButtonDefaults.outlinedButtonColors(
@@ -657,24 +634,24 @@ fun HomeScreen(
         }
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(22.dp))
 
       // ─── 3-STEP WORKFLOW CARDS ───
       Text(
-        text = "How It Works",
-        fontSize = 13.sp,
+        text = "HOW IT WORKS",
+        fontSize = 11.5.sp,
         fontWeight = FontWeight.Bold,
-        letterSpacing = 0.5.sp,
+        letterSpacing = 0.8.sp,
         color = TextMuted,
         modifier = Modifier.fillMaxWidth()
       )
 
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(8.dp))
 
       WorkflowStepCard(
         stepNumber = "1",
         title = "Choose Animated Companion",
-        description = "Select from pixel sprites, gems, planets, and creatures with real-time stride pace synchronization."
+        description = "Select from 16+ pixel sprites, gems, planets, and creatures with real-time stride pace synchronization."
       )
 
       Spacer(modifier = Modifier.height(8.dp))
@@ -682,7 +659,7 @@ fun HomeScreen(
       WorkflowStepCard(
         stepNumber = "2",
         title = "Tune Position & Large Preview",
-        description = "Adjust size and height above the progress line with crystal clear video preview and split-screen comparison."
+        description = "Adjust size, height above the progress line, and verify alignment with Instagram Reels & YouTube Shorts guides."
       )
 
       Spacer(modifier = Modifier.height(8.dp))
@@ -694,6 +671,163 @@ fun HomeScreen(
       )
 
       Spacer(modifier = Modifier.height(20.dp))
+
+      // ─── ABOUT APP & DEVELOPER SECTION (SaddexRnx) ───
+      Text(
+        text = "ABOUT & DEVELOPER",
+        fontSize = 11.5.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        color = TextMuted,
+        modifier = Modifier.fillMaxWidth()
+      )
+
+      Spacer(modifier = Modifier.height(8.dp))
+
+      Card(
+        colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, AccentIndigoLight.copy(alpha = 0.4f)),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                  .size(38.dp)
+                  .clip(CircleShape)
+                  .background(Color(0xFF1E293B))
+                  .border(1.dp, AccentCyan, CircleShape)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Code,
+                  contentDescription = null,
+                  tint = AccentCyan,
+                  modifier = Modifier.size(20.dp)
+                )
+              }
+
+              Spacer(modifier = Modifier.width(10.dp))
+
+              Column {
+                Text(
+                  text = "Walkbar Studio",
+                  fontSize = 14.5.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = TextPrimary
+                )
+                Text(
+                  text = "Version 1.2.0 • 100% Local Engine",
+                  fontSize = 10.5.sp,
+                  color = AccentGreen,
+                  fontWeight = FontWeight.SemiBold
+                )
+              }
+            }
+
+            Surface(
+              color = AccentIndigoMuted,
+              shape = RoundedCornerShape(6.dp)
+            ) {
+              Text(
+                text = "Pro Edition",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = AccentIndigoLight,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          Text(
+            text = "Created by SaddexRnx. Built with Kotlin, Jetpack Compose, and native Android MediaCodec hardware acceleration.",
+            fontSize = 12.sp,
+            color = TextSecondary,
+            lineHeight = 17.sp
+          )
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          // GitHub Profile Direct Card
+          Surface(
+            color = DarkSurfaceCard,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, DarkBorder),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween,
+              modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+              Column {
+                Text(
+                  text = "Developer GitHub",
+                  fontSize = 10.5.sp,
+                  color = TextMuted
+                )
+                Text(
+                  text = "https://github.com/SaddexRnx",
+                  fontSize = 12.5.sp,
+                  fontFamily = FontFamily.Monospace,
+                  fontWeight = FontWeight.SemiBold,
+                  color = AccentCyan
+                )
+              }
+
+              Row {
+                IconButton(
+                  onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("GitHub Profile", "https://github.com/SaddexRnx")
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "GitHub URL copied to clipboard!", Toast.LENGTH_SHORT).show()
+                  },
+                  modifier = Modifier.size(34.dp)
+                ) {
+                  Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = "Copy GitHub URL",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(16.dp)
+                  )
+                }
+
+                IconButton(
+                  onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/SaddexRnx")).apply {
+                      flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    try {
+                      context.startActivity(intent)
+                    } catch (e: Exception) {
+                      Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                    }
+                  },
+                  modifier = Modifier.size(34.dp)
+                ) {
+                  Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = "Open GitHub",
+                    tint = AccentIndigoLight,
+                    modifier = Modifier.size(16.dp)
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(16.dp))
 
       // Local Privacy Guarantee Badge
       Row(
@@ -711,14 +845,18 @@ fun HomeScreen(
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-          text = "100% Local On-Device Processing • Your video never leaves your phone",
+          text = "100% Local On-Device Processing • Zero Data Collection",
           fontSize = 11.sp,
           color = TextMuted
         )
       }
 
-      Spacer(modifier = Modifier.height(12.dp))
+      Spacer(modifier = Modifier.height(14.dp))
     }
+  }
+
+  if (showAboutSheet) {
+    AboutAppSheet(onDismissRequest = { showAboutSheet = false })
   }
 }
 

@@ -116,6 +116,7 @@ fun WalkbarApp(
             onHorizontalRangeChanged = { start, end -> viewModel.setHorizontalRange(start, end) },
             onToggleReverseDirection = { viewModel.toggleReverseDirection() },
             onToggleInstagramGuide = { viewModel.toggleInstagramGuide() },
+            onExportFpsOptionChanged = { viewModel.setExportFpsOption(it) },
             onBackClicked = { viewModel.clearVideo() },
             onExportClicked = { viewModel.startExport() }
           )

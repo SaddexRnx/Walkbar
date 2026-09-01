@@ -7,6 +7,13 @@ enum class CharacterSizePreset(val label: String, val scaleFactor: Float) {
   LARGE("Large", 0.090f)
 }
 
+enum class ExportFpsOption(val displayName: String, val targetFps: Float, val subtitle: String) {
+  AUTO("Auto (Native)", 0f, "Matches source video framerate"),
+  FPS_60("60 FPS Ultra", 60f, "Maximum 3D & stride smoothness"),
+  FPS_30("30 FPS Standard", 30f, "Fast export, standard smoothness"),
+  FPS_MAX("Max Phone FPS", 60f, "Highest supported hardware framerate")
+}
+
 data class CharacterOverlayConfig(
   val characterId: String = "puppy_01",
   val behavior: AnimationBehavior = AnimationBehavior.WALK,
@@ -17,7 +24,8 @@ data class CharacterOverlayConfig(
   val endXPercent: Float = 0.98f,            // 0.00 to 1.00
   val facingRight: Boolean = true,
   val reverseDirection: Boolean = false,
-  val showInstagramPreviewGuide: Boolean = true
+  val showInstagramPreviewGuide: Boolean = true,
+  val exportFpsOption: ExportFpsOption = ExportFpsOption.FPS_60
 ) {
   // Effective start and end considering direction
   val effectiveStartX: Float

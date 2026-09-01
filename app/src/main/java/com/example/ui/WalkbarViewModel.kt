@@ -42,9 +42,10 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       _isLoading.value = true
       try {
-        val meta = VideoMetadataHelper.extractMetadata(getApplication(), uri)
+        val localUri = VideoMetadataHelper.copyToLocalCacheIfNeeded(getApplication(), uri)
+        val meta = VideoMetadataHelper.extractMetadata(getApplication(), localUri)
         _videoMetadata.value = meta
-        playerManager.initialize(uri, meta.durationMs)
+        playerManager.initialize(localUri, meta.durationMs)
       } catch (e: Exception) {
         e.printStackTrace()
       } finally {
@@ -58,9 +59,10 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
       _isLoading.value = true
       try {
         val uri = SampleVideoGenerator.getOrCreateSampleVideo(getApplication())
-        val meta = VideoMetadataHelper.extractMetadata(getApplication(), uri)
+        val localUri = VideoMetadataHelper.copyToLocalCacheIfNeeded(getApplication(), uri)
+        val meta = VideoMetadataHelper.extractMetadata(getApplication(), localUri)
         _videoMetadata.value = meta
-        playerManager.initialize(uri, meta.durationMs)
+        playerManager.initialize(localUri, meta.durationMs)
       } catch (e: Exception) {
         e.printStackTrace()
       } finally {
@@ -114,6 +116,10 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
     _overlayConfig.value = _overlayConfig.value.copy(
       showInstagramPreviewGuide = !_overlayConfig.value.showInstagramPreviewGuide
     )
+  }
+
+  fun setExportFpsOption(option: com.example.model.ExportFpsOption) {
+    _overlayConfig.value = _overlayConfig.value.copy(exportFpsOption = option)
   }
 
   fun startExport() {

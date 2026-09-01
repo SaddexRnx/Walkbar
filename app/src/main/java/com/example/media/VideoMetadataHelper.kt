@@ -8,8 +8,40 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.example.model.VideoMetadata
 import java.io.File
+import java.io.FileOutputStream
 
 object VideoMetadataHelper {
+
+  /**
+   * Copies content URI to a dedicated app cache file to guarantee permanent read access
+   * across ExoPlayer, MediaMetadataRetriever, and MediaCodec hardware encoder.
+   */
+  fun copyToLocalCacheIfNeeded(context: Context, uri: Uri): Uri {
+    if (uri.scheme == "file") return uri
+    if (uri.scheme != "content") return uri
+
+    try {
+      val extension = when (context.contentResolver.getType(uri)) {
+        "video/mp4" -> ".mp4"
+        "video/quicktime" -> ".mov"
+        "video/3gpp" -> ".3gp"
+        "video/webm" -> ".webm"
+        else -> ".mp4"
+      }
+      val targetFile = File(context.cacheDir, "input_source_${System.currentTimeMillis()}$extension")
+      context.contentResolver.openInputStream(uri)?.use { input ->
+        FileOutputStream(targetFile).use { output ->
+          input.copyTo(output)
+        }
+      }
+      if (targetFile.exists() && targetFile.length() > 0) {
+        return Uri.fromFile(targetFile)
+      }
+    } catch (e: Exception) {
+      e.printStackTrace()
+    }
+    return uri
+  }
 
   fun extractMetadata(context: Context, uri: Uri): VideoMetadata {
     val retriever = MediaMetadataRetriever()
