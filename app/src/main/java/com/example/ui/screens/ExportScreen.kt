@@ -314,7 +314,7 @@ fun ExportScreen(
           Spacer(modifier = Modifier.height(6.dp))
 
           Text(
-            text = "Your video with ${character.name} is ready for Instagram Reels.",
+            text = "Your video with ${character.name} walking companion is ready!",
             fontSize = 13.sp,
             color = TextSecondary,
             textAlign = TextAlign.Center
@@ -391,7 +391,7 @@ fun ExportScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-              text = "Share to Instagram Reels / Apps",
+              text = "Share Video to Social Apps",
               fontSize = 15.sp,
               fontWeight = FontWeight.Bold,
               color = Color.White
@@ -543,7 +543,7 @@ private fun shareVideo(context: Context, videoUri: Uri) {
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
       type = "video/mp4"
       putExtra(Intent.EXTRA_STREAM, videoUri)
-      putExtra(Intent.EXTRA_TEXT, "Look at my walking companion for Instagram Reels! 🐾 #walkbar")
+      putExtra(Intent.EXTRA_TEXT, "Look at my video timeline walking companion! 🐾 #walkbar")
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(Intent.createChooser(shareIntent, "Share Walkbar Video"))

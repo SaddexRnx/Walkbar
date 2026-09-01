@@ -42,11 +42,18 @@ fun InstagramOverlayGuide(
   progress: Float,
   modifier: Modifier = Modifier
 ) {
+  TimelineOverlayGuide(progress = progress, modifier = modifier)
+}
+
+@Composable
+fun TimelineOverlayGuide(
+  progress: Float,
+  modifier: Modifier = Modifier
+) {
   Box(
-    modifier = modifier
-      .fillMaxSize()
+    modifier = modifier.fillMaxSize()
   ) {
-    // Subtle top banner indicator
+    // Top banner indicator
     Surface(
       color = Color(0xDD12151C),
       shape = RoundedCornerShape(20.dp),
@@ -66,7 +73,7 @@ fun InstagramOverlayGuide(
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-          text = "Reel Preview Guide • NOT exported",
+          text = "Timeline Reference Guide • Not Exported",
           fontSize = 11.sp,
           fontWeight = FontWeight.SemiBold,
           color = Color(0xFFF3F4F6)
@@ -74,7 +81,7 @@ fun InstagramOverlayGuide(
       }
     }
 
-    // Right Action Rail (Simulated Instagram UI)
+    // Right Action Rail (Standard Video App UI)
     Column(
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -117,12 +124,12 @@ fun InstagramOverlayGuide(
             .size(24.dp)
             .clip(CircleShape)
             .background(
-              Brush.linearGradient(listOf(Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF8134AF)))
+              Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFFA855F7), Color(0xFFEC4899)))
             )
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-          text = "walkbar_user",
+          text = "creator",
           color = Color.White,
           fontSize = 13.sp,
           fontWeight = FontWeight.Bold
@@ -131,27 +138,26 @@ fun InstagramOverlayGuide(
 
       Spacer(modifier = Modifier.height(4.dp))
       Text(
-        text = "Watch this tiny buddy walk on Instagram's progress bar 🐾 #walkbar",
+        text = "Watch this animated buddy walk across the video progress bar 🐾 #walkbar",
         color = Color(0xFFE5E7EB),
         fontSize = 12.sp,
         maxLines = 1
       )
     }
 
-    // SIMULATED NATIVE INSTAGRAM PROGRESS BAR
-    // Placed at the very bottom edge where Instagram draws its native scrubber line
+    // SIMULATED NATIVE PROGRESS SCRUBBER BAR
     Box(
       modifier = Modifier
         .align(Alignment.BottomCenter)
         .fillMaxWidth()
-        .height(3.dp)
+        .height(3.5.dp)
         .background(Color(0x55FFFFFF))
     ) {
       Box(
         modifier = Modifier
           .fillMaxWidth(progress.coerceIn(0f, 1f))
-          .height(3.dp)
-          .background(InstagramBarWhite)
+          .height(3.5.dp)
+          .background(Color.White)
       )
     }
   }

@@ -218,14 +218,14 @@ fun EditorScreen(
           )
         }
 
-        // Toggle Instagram Guide Simulation
+        // Toggle Reference Guide Simulation
         IconButton(
           onClick = onToggleInstagramGuide,
           modifier = Modifier.testTag("toggle_instagram_guide")
         ) {
           Icon(
             imageVector = if (overlayConfig.showInstagramPreviewGuide) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-            contentDescription = "Toggle Instagram Guide",
+            contentDescription = "Toggle Timeline Reference Guide",
             tint = if (overlayConfig.showInstagramPreviewGuide) AccentIndigoLight else TextMuted
           )
         }
@@ -269,9 +269,9 @@ fun EditorScreen(
       contentAlignment = Alignment.Center,
       modifier = Modifier
         .fillMaxWidth()
-        .weight(1f)
+        .weight(1.4f)
         .background(Color(0xFF000000))
-        .padding(horizontal = if (isSplitScreenMode) 12.dp else 20.dp, vertical = 6.dp)
+        .padding(horizontal = if (isSplitScreenMode) 10.dp else 16.dp, vertical = 4.dp)
     ) {
       if (isSplitScreenMode) {
         // ─── DUAL SPLIT-SCREEN VIEW (ORIGINAL ON TOP, OVERLAY ON BOTTOM) ───
@@ -958,7 +958,7 @@ fun EditorScreen(
                   )
                   Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                      text = "Reel Bar (3.8%)",
+                      text = "Standard Scrubber (3.8%)",
                       fontSize = 11.sp,
                       fontWeight = FontWeight.SemiBold,
                       color = AccentIndigoLight,
@@ -968,7 +968,7 @@ fun EditorScreen(
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                     Text(
-                      text = "Story Bar (1.5%)",
+                      text = "Bottom Timeline (1.5%)",
                       fontSize = 11.sp,
                       fontWeight = FontWeight.SemiBold,
                       color = AccentCyan,

@@ -1,6 +1,9 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,11 +38,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -55,6 +60,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +72,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +80,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.characters.CharacterRegistry
 import com.example.characters.CharacterRenderer
 import com.example.characters.WalkCycleMath
@@ -108,6 +116,38 @@ fun HomeScreen(
   onSampleVideoRequested: () -> Unit,
   modifier: Modifier = Modifier
 ) {
+  val context = LocalContext.current
+
+  // Check required permissions
+  val requiredPermissions = remember {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
+    } else {
+      arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+  }
+
+  var hasVideoPermission by remember {
+    mutableStateOf(
+      requiredPermissions.all { perm ->
+        ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
+      }
+    )
+  }
+
+  val permissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestMultiplePermissions()
+  ) { results ->
+    hasVideoPermission = results.values.all { it }
+  }
+
+  // Request runtime permission on launch
+  LaunchedEffect(Unit) {
+    if (!hasVideoPermission) {
+      permissionLauncher.launch(requiredPermissions)
+    }
+  }
+
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia()
   ) { uri: Uri? ->
@@ -136,7 +176,7 @@ fun HomeScreen(
 
   // Continuous animation transition for live progress bar simulation
   val infiniteTransition = rememberInfiniteTransition(label = "homeProgress")
-  val simDurationMs = 5000 // 5 seconds full cycle
+  val simDurationMs = 4500 // 4.5 seconds full cycle
   val simTimeMs by infiniteTransition.animateFloat(
     initialValue = 0f,
     targetValue = simDurationMs.toFloat(),
@@ -159,10 +199,10 @@ fun HomeScreen(
       modifier = Modifier
         .fillMaxSize()
         .verticalScroll(scrollState)
-        .padding(horizontal = 20.dp, vertical = 20.dp)
+        .padding(horizontal = 20.dp, vertical = 16.dp)
         .widthIn(max = 600.dp)
     ) {
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(6.dp))
 
       // App Brand Pill
       Surface(
@@ -182,7 +222,7 @@ fun HomeScreen(
           )
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "Instagram Reels Progress Companion",
+            text = "Video Timeline Companion",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = TextSecondary
@@ -190,7 +230,7 @@ fun HomeScreen(
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       // App Title & Tagline
       Text(
@@ -204,7 +244,7 @@ fun HomeScreen(
       Spacer(modifier = Modifier.height(6.dp))
 
       Text(
-        text = "Composite tiny animated characters that walk across your video progress bar in exact sync with playback duration.",
+        text = "Place animated character companions that walk across your video progress bar in real-time sync.",
         fontSize = 14.sp,
         color = TextSecondary,
         textAlign = TextAlign.Center,
@@ -212,18 +252,18 @@ fun HomeScreen(
         modifier = Modifier.padding(horizontal = 12.dp)
       )
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(18.dp))
 
-      // ─── 1. INTERACTIVE CHARACTER SPRITE SELECTION & PROGRESS BAR COMPONENT ───
+      // ─── 1. COMPACT COMPANION SPRITE BOX & LIVE PROGRESS BAR ───
       Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(22.dp),
         border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("home_character_selector_card")
       ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -259,31 +299,31 @@ fun HomeScreen(
             }
           }
 
-          Spacer(modifier = Modifier.height(14.dp))
+          Spacer(modifier = Modifier.height(12.dp))
 
-          // ─── LIVE INTERACTIVE PROGRESS BAR WALK CYCLE SIMULATOR ───
+          // ─── COMPACT LIVE SIMULATOR BAR (Clean, proportional height) ───
           Box(
             modifier = Modifier
               .fillMaxWidth()
-              .height(120.dp)
-              .clip(RoundedCornerShape(18.dp))
+              .height(86.dp)
+              .clip(RoundedCornerShape(16.dp))
               .background(Color(0xFF0C0D11))
-              .border(1.dp, Color(0x336366F1), RoundedCornerShape(18.dp))
-              .padding(12.dp)
+              .border(1.dp, Color(0x336366F1), RoundedCornerShape(16.dp))
+              .padding(horizontal = 12.dp, vertical = 8.dp)
           ) {
             Column(
               verticalArrangement = Arrangement.SpaceBetween,
               modifier = Modifier.fillMaxSize()
             ) {
-              // Header tag inside simulator
+              // Header tag inside simulator: Clean and well-spaced character tag
               Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
               ) {
                 Text(
-                  text = "LIVE PROGRESS BAR WALK SIMULATION",
-                  fontSize = 9.sp,
+                  text = "LIVE PROGRESS WALK PREVIEW",
+                  fontSize = 8.5.sp,
                   fontWeight = FontWeight.Bold,
                   letterSpacing = 0.8.sp,
                   color = TextMuted
@@ -292,7 +332,9 @@ fun HomeScreen(
                   text = "${activeCharacter.name} • ${overlayConfig.behavior.displayName}",
                   fontSize = 10.sp,
                   fontWeight = FontWeight.SemiBold,
-                  color = AccentIndigoLight
+                  color = AccentIndigoLight,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis
                 )
               }
 
@@ -300,16 +342,16 @@ fun HomeScreen(
               Box(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .height(58.dp)
+                  .height(38.dp)
               ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                   val canvasWidth = size.width
                   val canvasHeight = size.height
-                  val charHeight = canvasHeight * 0.70f
+                  val charHeight = canvasHeight * 0.85f
 
                   // Character X position mapped to current progress bar position
-                  val charX = simProgress * (canvasWidth - 40f) + 20f
-                  val charY = canvasHeight - 2f
+                  val charX = simProgress * (canvasWidth - 36f) + 18f
+                  val charY = canvasHeight - 1f
 
                   val stepDurationMs = WalkCycleMath.getEffectiveStepDurationMs(
                     behavior = overlayConfig.behavior,
@@ -336,19 +378,19 @@ fun HomeScreen(
                 }
               }
 
-              // Instagram / Reel Progress Bar line
+              // Scrubber Line
               Column {
                 Box(
                   modifier = Modifier
                     .fillMaxWidth()
-                    .height(3.5.dp)
+                    .height(3.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(Color(0x33FFFFFF))
                 ) {
                   Box(
                     modifier = Modifier
                       .fillMaxWidth(simProgress)
-                      .height(3.5.dp)
+                      .height(3.dp)
                       .background(
                         Brush.horizontalGradient(
                           listOf(AccentIndigo, AccentIndigoLight, Color.White)
@@ -357,7 +399,7 @@ fun HomeScreen(
                   )
                 }
 
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Row(
                   horizontalArrangement = Arrangement.SpaceBetween,
@@ -365,18 +407,18 @@ fun HomeScreen(
                 ) {
                   Text(
                     text = "0:00",
-                    fontSize = 8.5.sp,
+                    fontSize = 8.sp,
                     fontFamily = FontFamily.Monospace,
                     color = TextMuted
                   )
                   Text(
-                    text = "Reel Timeline Progress",
-                    fontSize = 8.5.sp,
+                    text = "Video Timeline Scrubber",
+                    fontSize = 8.sp,
                     color = TextMuted
                   )
                   Text(
                     text = "0:05",
-                    fontSize = 8.5.sp,
+                    fontSize = 8.sp,
                     fontFamily = FontFamily.Monospace,
                     color = TextMuted
                   )
@@ -385,7 +427,7 @@ fun HomeScreen(
             }
           }
 
-          Spacer(modifier = Modifier.height(14.dp))
+          Spacer(modifier = Modifier.height(12.dp))
 
           // ─── CATEGORY FILTER PILLS ───
           LazyRow(
@@ -428,7 +470,7 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier
               .fillMaxWidth()
-              .padding(vertical = 4.dp)
+              .padding(vertical = 2.dp)
           ) {
             items(filteredCharacters, key = { it.id }) { char ->
               CharacterAvatarCard(
@@ -442,62 +484,59 @@ fun HomeScreen(
 
           Spacer(modifier = Modifier.height(12.dp))
 
-          // ─── LOCOMOTION & WALKING SPEED BEHAVIOR SELECTOR ───
+          // ─── LOCOMOTION & WALKING SPEED BEHAVIOR SELECTOR (Uniform equal-width buttons) ───
+          Text(
+            text = "GAIT / SPEED:",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextMuted,
+            letterSpacing = 0.5.sp
+          )
+
+          Spacer(modifier = Modifier.height(6.dp))
+
           Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth()
           ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Icon(
-                imageVector = Icons.Default.Speed,
-                contentDescription = null,
-                tint = TextMuted,
-                modifier = Modifier.size(14.dp)
-              )
-              Spacer(modifier = Modifier.width(5.dp))
-              Text(
-                text = "Gait / Speed:",
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextSecondary
-              )
-            }
+            val behaviors = listOf(
+              AnimationBehavior.PACE_SYNC,
+              AnimationBehavior.WALK,
+              AnimationBehavior.RUN,
+              AnimationBehavior.HOP
+            )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-              AnimationBehavior.entries.take(4).forEach { behavior ->
-                val isBehaviorActive = overlayConfig.behavior == behavior
-                FilterChip(
-                  selected = isBehaviorActive,
-                  onClick = { onBehaviorChanged(behavior) },
-                  shape = RoundedCornerShape(8.dp),
-                  label = {
-                    Text(
-                      text = behavior.displayName,
-                      fontSize = 10.5.sp,
-                      fontWeight = if (isBehaviorActive) FontWeight.Bold else FontWeight.Normal
-                    )
-                  },
-                  colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AccentIndigo,
-                    selectedLabelColor = Color.White,
-                    containerColor = DarkSurfaceCard,
-                    labelColor = TextSecondary
-                  ),
-                  border = FilterChipDefaults.filterChipBorder(
-                    borderColor = DarkBorder,
-                    selectedBorderColor = AccentIndigo,
-                    enabled = true,
-                    selected = isBehaviorActive
+            behaviors.forEach { behavior ->
+              val isBehaviorActive = overlayConfig.behavior == behavior
+              Surface(
+                color = if (isBehaviorActive) AccentIndigo else DarkSurfaceCard,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, if (isBehaviorActive) AccentIndigoLight else DarkBorder),
+                modifier = Modifier
+                  .weight(1f)
+                  .height(38.dp)
+                  .clickable { onBehaviorChanged(behavior) }
+              ) {
+                Box(
+                  contentAlignment = Alignment.Center,
+                  modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)
+                ) {
+                  Text(
+                    text = behavior.displayName,
+                    fontSize = 11.sp,
+                    fontWeight = if (isBehaviorActive) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isBehaviorActive) Color.White else TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                   )
-                )
+                }
               }
             }
           }
         }
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
       // ─── PRIMARY ACTION BUTTONS (SELECT VIDEO / TRY SAMPLE) ───
       if (isLoading) {
@@ -509,12 +548,12 @@ fun HomeScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-          text = "Loading video and extracting specs...",
+          text = "Loading video and analyzing properties...",
           fontSize = 13.sp,
           color = TextSecondary
         )
       } else {
-        // Primary: Select Instagram Reel / Video from Gallery
+        // Primary: Select Video from Device Gallery
         Button(
           onClick = {
             try {
@@ -545,15 +584,15 @@ fun HomeScreen(
           Spacer(modifier = Modifier.width(10.dp))
           Column {
             Text(
-              text = "Select Instagram Reel / Video",
+              text = "Select Video from Gallery",
               fontSize = 15.sp,
               fontWeight = FontWeight.Bold,
               color = Color.White
             )
             Text(
-              text = "Device Gallery • Reels (9:16) • MP4 / MOV",
+              text = "Supports Reels, Shorts, TikTok, Clips • MP4, MOV, WEBM",
               fontSize = 10.5.sp,
-              color = Color.White.copy(alpha = 0.8f)
+              color = Color.White.copy(alpha = 0.85f)
             )
           }
         }
@@ -597,7 +636,7 @@ fun HomeScreen(
             border = BorderStroke(1.dp, DarkBorder),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier
-              .weight(1.2f)
+              .weight(1.1f)
               .height(48.dp)
               .testTag("try_sample_button")
           ) {
@@ -609,7 +648,7 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-              text = "Try Reel Sample",
+              text = "Try Demo Video",
               fontSize = 12.sp,
               fontWeight = FontWeight.SemiBold,
               maxLines = 1
@@ -618,7 +657,7 @@ fun HomeScreen(
         }
       }
 
-      Spacer(modifier = Modifier.height(28.dp))
+      Spacer(modifier = Modifier.height(24.dp))
 
       // ─── 3-STEP WORKFLOW CARDS ───
       Text(
@@ -630,31 +669,31 @@ fun HomeScreen(
         modifier = Modifier.fillMaxWidth()
       )
 
-      Spacer(modifier = Modifier.height(12.dp))
+      Spacer(modifier = Modifier.height(10.dp))
 
       WorkflowStepCard(
         stepNumber = "1",
         title = "Choose Animated Companion",
-        description = "Select from 3D-styled pixel sprites, spinning gems, planets, or animals with real-time stride pace synchronization."
+        description = "Select from pixel sprites, gems, planets, and creatures with real-time stride pace synchronization."
       )
 
       Spacer(modifier = Modifier.height(8.dp))
 
       WorkflowStepCard(
         stepNumber = "2",
-        title = "Tune Position & Split-Screen Preview",
-        description = "Adjust size and vertical height above the progress bar with dual split-screen side-by-side original comparison."
+        title = "Tune Position & Large Preview",
+        description = "Adjust size and height above the progress line with crystal clear video preview and split-screen comparison."
       )
 
       Spacer(modifier = Modifier.height(8.dp))
 
       WorkflowStepCard(
         stepNumber = "3",
-        title = "Export with MediaCodec Hardware Engine",
+        title = "Fast Local Hardware Export",
         description = "Burn character animations directly into high-quality MP4 video frames with original audio preserved bit-for-bit."
       )
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(20.dp))
 
       // Local Privacy Guarantee Badge
       Row(
@@ -678,7 +717,7 @@ fun HomeScreen(
         )
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(12.dp))
     }
   }
 }
@@ -697,37 +736,37 @@ private fun WorkflowStepCard(
   ) {
     Row(
       verticalAlignment = Alignment.CenterVertically,
-      modifier = Modifier.padding(16.dp)
+      modifier = Modifier.padding(14.dp)
     ) {
       Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-          .size(32.dp)
+          .size(30.dp)
           .clip(CircleShape)
           .background(AccentIndigoMuted)
           .border(1.dp, AccentIndigoLight.copy(alpha = 0.3f), CircleShape)
       ) {
         Text(
           text = stepNumber,
-          fontSize = 13.sp,
+          fontSize = 12.sp,
           fontWeight = FontWeight.Bold,
           color = AccentIndigoLight
         )
       }
 
-      Spacer(modifier = Modifier.width(14.dp))
+      Spacer(modifier = Modifier.width(12.dp))
 
       Column(modifier = Modifier.weight(1f)) {
         Text(
           text = title,
-          fontSize = 14.sp,
+          fontSize = 13.5.sp,
           fontWeight = FontWeight.SemiBold,
           color = TextPrimary
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
           text = description,
-          fontSize = 12.sp,
+          fontSize = 11.5.sp,
           color = TextSecondary,
           lineHeight = 16.sp
         )

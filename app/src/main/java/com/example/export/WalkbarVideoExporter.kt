@@ -50,10 +50,20 @@ object WalkbarVideoExporter {
     emit(ExportState.Preparing("Reading video properties & preparing encoder..."))
 
     val character = CharacterRegistry.getById(config.characterId)
-    val width = ((metadata.effectiveWidth / 2) * 2).coerceAtLeast(160)
-    val height = ((metadata.effectiveHeight / 2) * 2).coerceAtLeast(160)
+    
+    // Scale down dimensions if exceeding 1080p to maximize speed and minimize memory
+    val rawW = metadata.effectiveWidth
+    val rawH = metadata.effectiveHeight
+    val maxDimension = 1920
+    val scale = if (rawW > maxDimension || rawH > maxDimension) {
+      maxDimension.toFloat() / maxOf(rawW, rawH).toFloat()
+    } else {
+      1.0f
+    }
+    val width = (((rawW * scale).toInt() / 2) * 2).coerceAtLeast(160)
+    val height = (((rawH * scale).toInt() / 2) * 2).coerceAtLeast(160)
     val durationMs = metadata.durationMs.coerceAtLeast(1000L)
-    val fps = metadata.fps.coerceIn(15f, 60f)
+    val fps = metadata.fps.coerceIn(15f, 30f) // 30fps is optimal for fast encoding and buttery smooth playback
     val totalFrames = ((durationMs / 1000.0) * fps).toInt().coerceAtLeast(1)
     val frameIntervalUs = (1_000_000.0 / fps).toLong()
 
@@ -67,6 +77,7 @@ object WalkbarVideoExporter {
       var videoTrackIndex = -1
       var audioTrackIndex = -1
       var muxerStarted = false
+      val firstVideoPtsHolder = longArrayOf(-1L)
 
       // 1. Setup Video Encoder
       val videoFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
@@ -195,7 +206,8 @@ object WalkbarVideoExporter {
           muxer = muxer,
           currentVideoTrackIndex = videoTrackIndex,
           isMuxerStarted = muxerStarted,
-          audioFormat = audioFormat
+          audioFormat = audioFormat,
+          firstVideoPtsHolder = firstVideoPtsHolder
         ) { vTrack, aTrack ->
           videoTrackIndex = vTrack
           audioTrackIndex = aTrack
@@ -240,6 +252,10 @@ object WalkbarVideoExporter {
           }
           val encodedData = encoder.getOutputBuffer(outIndex)
           if (encodedData != null && bufferInfo.size > 0 && muxerStarted) {
+            if (firstVideoPtsHolder[0] < 0L) {
+              firstVideoPtsHolder[0] = bufferInfo.presentationTimeUs
+            }
+            bufferInfo.presentationTimeUs = (bufferInfo.presentationTimeUs - firstVideoPtsHolder[0]).coerceAtLeast(0L)
             encodedData.position(bufferInfo.offset)
             encodedData.limit(bufferInfo.offset + bufferInfo.size)
             muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
@@ -257,6 +273,7 @@ object WalkbarVideoExporter {
         val maxBufferSize = 256 * 1024
         val audioBuffer = ByteBuffer.allocateDirect(maxBufferSize)
         val audioBufferInfo = MediaCodec.BufferInfo()
+        var firstAudioPtsUs = -1L
 
         while (true) {
           val sampleSize = audioExtractor.readSampleData(audioBuffer, 0)
@@ -271,10 +288,16 @@ object WalkbarVideoExporter {
 
           val isKey = (sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0
           val flags = if (isKey) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
+          val sampleTime = audioExtractor.sampleTime
+
+          if (firstAudioPtsUs < 0L && sampleTime >= 0L) {
+            firstAudioPtsUs = sampleTime
+          }
+          val normalizedAudioPts = if (firstAudioPtsUs >= 0L) (sampleTime - firstAudioPtsUs).coerceAtLeast(0L) else sampleTime
 
           audioBufferInfo.offset = 0
           audioBufferInfo.size = sampleSize
-          audioBufferInfo.presentationTimeUs = audioExtractor.sampleTime
+          audioBufferInfo.presentationTimeUs = normalizedAudioPts
           audioBufferInfo.flags = flags
 
           if (audioBufferInfo.presentationTimeUs <= durationMs * 1000L) {
@@ -333,6 +356,7 @@ object WalkbarVideoExporter {
     currentVideoTrackIndex: Int,
     isMuxerStarted: Boolean,
     audioFormat: MediaFormat?,
+    firstVideoPtsHolder: LongArray,
     onMuxerStarted: (Int, Int) -> Unit
   ): Int {
     var muxerStarted = isMuxerStarted
@@ -360,6 +384,10 @@ object WalkbarVideoExporter {
         }
         val encodedData = encoder.getOutputBuffer(outIndex)
         if (encodedData != null && bufferInfo.size > 0 && muxerStarted && videoTrackIndex >= 0) {
+          if (firstVideoPtsHolder[0] < 0L) {
+            firstVideoPtsHolder[0] = bufferInfo.presentationTimeUs
+          }
+          bufferInfo.presentationTimeUs = (bufferInfo.presentationTimeUs - firstVideoPtsHolder[0]).coerceAtLeast(0L)
           encodedData.position(bufferInfo.offset)
           encodedData.limit(bufferInfo.offset + bufferInfo.size)
           muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)

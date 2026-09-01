@@ -1,6 +1,6 @@
 {
   "name": "Walkbar",
-  "description": "Walkbar places tiny synchronized animated characters walking along native Instagram Reel progress bars with high quality local export.",
+  "description": "Walkbar composites customizable animated character companions walking in real-time sync across video timeline progress bars for Reels, Shorts, TikTok, and video clips.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

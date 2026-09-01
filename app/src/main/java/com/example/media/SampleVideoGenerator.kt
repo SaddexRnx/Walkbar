@@ -56,6 +56,7 @@ object SampleVideoGenerator {
     val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     var videoTrackIndex = -1
     var muxerStarted = false
+    val firstPtsHolder = longArrayOf(-1L)
 
     val bufferInfo = MediaCodec.BufferInfo()
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -123,11 +124,11 @@ object SampleVideoGenerator {
         paint.textSize = 38f
         paint.textAlign = Paint.Align.CENTER
         paint.style = Paint.Style.FILL
-        canvas.drawText("Walkbar Reel Demo", width / 2f, height * 0.28f, paint)
+        canvas.drawText("Walkbar Timeline Demo", width / 2f, height * 0.28f, paint)
 
         paint.textSize = 22f
         paint.color = Color.rgb(203, 213, 225)
-        canvas.drawText("Instagram native progress bar will appear below", width / 2f, height * 0.33f, paint)
+        canvas.drawText("Your animated companion walks along the video bar", width / 2f, height * 0.33f, paint)
 
       } finally {
         inputSurface.unlockCanvasAndPost(canvas)
@@ -139,7 +140,8 @@ object SampleVideoGenerator {
         bufferInfo = bufferInfo,
         muxer = muxer,
         currentVideoTrackIndex = videoTrackIndex,
-        isMuxerStarted = muxerStarted
+        isMuxerStarted = muxerStarted,
+        firstPtsUsHolder = firstPtsHolder
       ) { trackIdx ->
         videoTrackIndex = trackIdx
         muxerStarted = true
@@ -167,6 +169,10 @@ object SampleVideoGenerator {
         }
         val encodedData = encoder.getOutputBuffer(outIndex)
         if (encodedData != null && bufferInfo.size > 0 && muxerStarted && videoTrackIndex >= 0) {
+          if (firstPtsHolder[0] < 0L) {
+            firstPtsHolder[0] = bufferInfo.presentationTimeUs
+          }
+          bufferInfo.presentationTimeUs = (bufferInfo.presentationTimeUs - firstPtsHolder[0]).coerceAtLeast(0L)
           encodedData.position(bufferInfo.offset)
           encodedData.limit(bufferInfo.offset + bufferInfo.size)
           muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
@@ -197,6 +203,7 @@ object SampleVideoGenerator {
     muxer: MediaMuxer,
     currentVideoTrackIndex: Int,
     isMuxerStarted: Boolean,
+    firstPtsUsHolder: LongArray,
     onTrackAdded: (Int) -> Unit
   ): Int {
     var muxerStarted = isMuxerStarted
@@ -219,6 +226,10 @@ object SampleVideoGenerator {
         }
         val encodedData = encoder.getOutputBuffer(outIndex)
         if (encodedData != null && bufferInfo.size > 0 && muxerStarted && videoTrackIndex >= 0) {
+          if (firstPtsUsHolder[0] < 0L) {
+            firstPtsUsHolder[0] = bufferInfo.presentationTimeUs
+          }
+          bufferInfo.presentationTimeUs = (bufferInfo.presentationTimeUs - firstPtsUsHolder[0]).coerceAtLeast(0L)
           encodedData.position(bufferInfo.offset)
           encodedData.limit(bufferInfo.offset + bufferInfo.size)
           muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
