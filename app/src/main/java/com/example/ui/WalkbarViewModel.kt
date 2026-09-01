@@ -36,11 +36,40 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
   private val _isLoading = MutableStateFlow(false)
   val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+  private val _errorMessage = MutableStateFlow<String?>(null)
+  val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
   private var exportJob: Job? = null
+
+  init {
+    detectDeviceScreenAspectRatio()
+  }
+
+  private fun detectDeviceScreenAspectRatio() {
+    try {
+      val metrics = getApplication<Application>().resources.displayMetrics
+      val pWidth = minOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(320)
+      val pHeight = maxOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(640)
+      val aspect = pWidth.toFloat() / pHeight.toFloat()
+      val tallFactor = 9f / aspect
+      val formattedRatio = String.format(java.util.Locale.US, "9:%.1f", tallFactor)
+      _overlayConfig.value = _overlayConfig.value.copy(
+        deviceScreenWidth = pWidth,
+        deviceScreenHeight = pHeight,
+        deviceScreenRatioFormatted = formattedRatio,
+        framingMode = com.example.model.VideoFramingMode.MATCH_DEVICE_SCREEN
+      )
+    } catch (_: Exception) {}
+  }
+
+  fun dismissError() {
+    _errorMessage.value = null
+  }
 
   fun selectVideo(uri: Uri) {
     viewModelScope.launch {
       _isLoading.value = true
+      _errorMessage.value = null
       try {
         val localUri = VideoMetadataHelper.copyToLocalCacheIfNeeded(getApplication(), uri)
         val meta = VideoMetadataHelper.extractMetadata(getApplication(), localUri)
@@ -48,6 +77,7 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
         playerManager.initialize(localUri, meta.durationMs)
       } catch (e: Exception) {
         e.printStackTrace()
+        _errorMessage.value = "Unable to load video: ${e.localizedMessage ?: "File format not supported or corrupted"}"
       } finally {
         _isLoading.value = false
       }
@@ -57,6 +87,7 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
   fun loadSampleVideo() {
     viewModelScope.launch {
       _isLoading.value = true
+      _errorMessage.value = null
       try {
         val uri = SampleVideoGenerator.getOrCreateSampleVideo(getApplication())
         val localUri = VideoMetadataHelper.copyToLocalCacheIfNeeded(getApplication(), uri)
@@ -65,6 +96,7 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
         playerManager.initialize(localUri, meta.durationMs)
       } catch (e: Exception) {
         e.printStackTrace()
+        _errorMessage.value = "Unable to generate demo video: ${e.localizedMessage ?: "Storage error"}"
       } finally {
         _isLoading.value = false
       }
@@ -140,6 +172,12 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
     )
   }
 
+  fun toggleSafeZoneGuide() {
+    _overlayConfig.value = _overlayConfig.value.copy(
+      showSafeZoneGuide = !_overlayConfig.value.showSafeZoneGuide
+    )
+  }
+
   fun setExportFpsOption(option: com.example.model.ExportFpsOption) {
     _overlayConfig.value = _overlayConfig.value.copy(exportFpsOption = option)
   }
@@ -162,6 +200,12 @@ class WalkbarViewModel(application: Application) : AndroidViewModel(application)
     exportJob?.cancel()
     exportJob = null
     _exportState.value = ExportState.Idle
+    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+      try {
+        val cacheDir = getApplication<Application>().cacheDir
+        cacheDir.listFiles { file -> file.name.startsWith("walkbar_export_") }?.forEach { it.delete() }
+      } catch (_: Exception) {}
+    }
   }
 
   fun resetExport() {

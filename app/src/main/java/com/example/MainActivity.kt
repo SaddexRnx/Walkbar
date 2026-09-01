@@ -22,7 +22,7 @@ import com.example.ui.WalkbarViewModel
 import com.example.ui.screens.EditorScreen
 import com.example.ui.screens.ExportScreen
 import com.example.ui.screens.HomeScreen
-import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.WalkbarTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
     com.example.characters.CharacterRegistry.initialize(this)
     enableEdgeToEdge()
     setContent {
-      MyApplicationTheme {
+      WalkbarTheme {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
           WalkbarApp(
             viewModel = viewModel,
@@ -119,6 +119,7 @@ fun WalkbarApp(
             onHorizontalRangeChanged = { start, end -> viewModel.setHorizontalRange(start, end) },
             onToggleReverseDirection = { viewModel.toggleReverseDirection() },
             onToggleInstagramGuide = { viewModel.toggleInstagramGuide() },
+            onToggleSafeZoneGuide = { viewModel.toggleSafeZoneGuide() },
             onExportFpsOptionChanged = { viewModel.setExportFpsOption(it) },
             onBackClicked = { viewModel.clearVideo() },
             onExportClicked = { viewModel.startExport() }

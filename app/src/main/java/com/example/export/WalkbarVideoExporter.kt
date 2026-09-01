@@ -63,6 +63,16 @@ object WalkbarVideoExporter {
     val rawH = metadata.effectiveHeight
 
     val (targetW, targetH) = when (config.framingMode) {
+      VideoFramingMode.MATCH_DEVICE_SCREEN -> {
+        val w = 1080
+        val screenAspect = if (config.deviceScreenHeight > 0 && config.deviceScreenWidth > 0) {
+          (config.deviceScreenWidth.toFloat() / config.deviceScreenHeight.toFloat()).coerceIn(0.35f, 1.0f)
+        } else {
+          9f / 19.5f
+        }
+        val h = (((w / screenAspect).toInt() / 2) * 2).coerceIn(1280, 2560)
+        Pair(w, h)
+      }
       VideoFramingMode.REELS_9_16 -> {
         Pair(1080, 1920)
       }
@@ -418,10 +428,36 @@ object WalkbarVideoExporter {
                 currentTimeMs = currentMs
               )
 
+              // Calculate center-crop texture matrix if framing mode crops the video
+              val inputAspect = metadata.effectiveWidth.toFloat() / metadata.effectiveHeight.toFloat()
+              val targetAspect = width.toFloat() / height.toFloat()
+              val finalTexMatrix = FloatArray(16)
+
+              if (config.framingMode != VideoFramingMode.ORIGINAL && Math.abs(inputAspect - targetAspect) > 0.01f) {
+                val cropMatrix = FloatArray(16)
+                Matrix.setIdentityM(cropMatrix, 0)
+                if (inputAspect > targetAspect) {
+                  // Input is wider than target frame: crop horizontal edges to fill height
+                  val scaleX = targetAspect / inputAspect
+                  Matrix.translateM(cropMatrix, 0, 0.5f, 0.5f, 0f)
+                  Matrix.scaleM(cropMatrix, 0, scaleX, 1.0f, 1.0f)
+                  Matrix.translateM(cropMatrix, 0, -0.5f, -0.5f, 0f)
+                } else {
+                  // Input is taller than target frame: crop vertical edges to fill width
+                  val scaleY = inputAspect / targetAspect
+                  Matrix.translateM(cropMatrix, 0, 0.5f, 0.5f, 0f)
+                  Matrix.scaleM(cropMatrix, 0, 1.0f, scaleY, 1.0f)
+                  Matrix.translateM(cropMatrix, 0, -0.5f, -0.5f, 0f)
+                }
+                Matrix.multiplyMM(finalTexMatrix, 0, texMatrix, 0, cropMatrix, 0)
+              } else {
+                System.arraycopy(texMatrix, 0, finalTexMatrix, 0, 16)
+              }
+
               // Render Hardware OES Video Frame + Character Overlay into Encoder Input Surface
               eglEncoder.renderOesAndOverlayFrame(
                 oesTextureId = oesTextureId,
-                texMatrix = texMatrix,
+                texMatrix = finalTexMatrix,
                 overlayBitmap = overlayBitmap,
                 timestampNs = ptsNs,
                 width = width,
@@ -618,7 +654,21 @@ object WalkbarVideoExporter {
         canvas.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR)
 
         if (sourceBitmap != null) {
-          srcRect.set(0, 0, sourceBitmap.width, sourceBitmap.height)
+          val bmpAspect = sourceBitmap.width.toFloat() / sourceBitmap.height.toFloat()
+          val targetAspect = width.toFloat() / height.toFloat()
+          if (config.framingMode != VideoFramingMode.ORIGINAL && Math.abs(bmpAspect - targetAspect) > 0.01f) {
+            if (bmpAspect > targetAspect) {
+              val cropW = (sourceBitmap.height * targetAspect).toInt()
+              val cropX = (sourceBitmap.width - cropW) / 2
+              srcRect.set(cropX, 0, cropX + cropW, sourceBitmap.height)
+            } else {
+              val cropH = (sourceBitmap.width / targetAspect).toInt()
+              val cropY = (sourceBitmap.height - cropH) / 2
+              srcRect.set(0, cropY, sourceBitmap.width, cropY + cropH)
+            }
+          } else {
+            srcRect.set(0, 0, sourceBitmap.width, sourceBitmap.height)
+          }
           canvas.drawBitmap(sourceBitmap, srcRect, dstRect, paint)
           sourceBitmap.recycle()
         } else {

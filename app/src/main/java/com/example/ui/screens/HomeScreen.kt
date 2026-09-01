@@ -48,9 +48,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -93,10 +90,12 @@ import com.example.model.ObjectCategory
 import com.example.ui.components.AboutAppSheet
 import com.example.ui.components.CharacterAvatarCard
 import com.example.ui.theme.AccentCyan
+import com.example.ui.theme.AccentGold
 import com.example.ui.theme.AccentGreen
-import com.example.ui.theme.AccentIndigo
-import com.example.ui.theme.AccentIndigoLight
-import com.example.ui.theme.AccentIndigoMuted
+import com.example.ui.theme.AccentPrimary
+import com.example.ui.theme.AccentPrimaryActive
+import com.example.ui.theme.AccentPrimaryLight
+import com.example.ui.theme.AccentPrimaryMuted
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkSurfaceCard
@@ -185,13 +184,13 @@ fun HomeScreen(
         ) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
           ) {
             Box(
               modifier = Modifier
                 .size(7.dp)
                 .clip(CircleShape)
-                .background(AccentIndigo)
+                .background(AccentPrimary)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
@@ -215,7 +214,7 @@ fun HomeScreen(
           Icon(
             imageVector = Icons.Default.Info,
             contentDescription = "About App & Developer",
-            tint = AccentIndigoLight,
+            tint = AccentPrimaryLight,
             modifier = Modifier.size(20.dp)
           )
         }
@@ -248,7 +247,7 @@ fun HomeScreen(
       // ─── INTERACTIVE LIVE SIMULATION HERO CARD ───
       Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
       ) {
@@ -267,15 +266,15 @@ fun HomeScreen(
               Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                  .size(22.dp)
+                  .size(24.dp)
                   .clip(CircleShape)
-                  .background(AccentIndigoMuted)
+                  .background(AccentPrimaryMuted)
               ) {
                 Icon(
                   imageVector = Icons.Default.AutoAwesome,
                   contentDescription = null,
-                  tint = AccentIndigoLight,
-                  modifier = Modifier.size(13.dp)
+                  tint = AccentPrimaryLight,
+                  modifier = Modifier.size(14.dp)
                 )
               }
               Spacer(modifier = Modifier.width(8.dp))
@@ -288,20 +287,21 @@ fun HomeScreen(
             }
 
             Surface(
-              color = AccentIndigoMuted,
-              shape = RoundedCornerShape(6.dp)
+              color = AccentPrimaryMuted,
+              shape = RoundedCornerShape(8.dp),
+              border = BorderStroke(0.5.dp, AccentPrimaryLight.copy(alpha = 0.5f))
             ) {
               Text(
                 text = "${activeCharacter.name} • ${overlayConfig.behavior.displayName}",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AccentIndigoLight,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                color = AccentPrimaryLight,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
               )
             }
           }
 
-          Spacer(modifier = Modifier.height(10.dp))
+          Spacer(modifier = Modifier.height(12.dp))
 
           // ─── SIMULATION STAGE (Black Glass Viewport) ───
           Box(
@@ -309,7 +309,7 @@ fun HomeScreen(
               .fillMaxWidth()
               .height(96.dp)
               .clip(RoundedCornerShape(14.dp))
-              .background(Color(0xFF0C0D11))
+              .background(Color(0xFF0D0D12))
               .border(1.dp, DarkBorder, RoundedCornerShape(14.dp))
               .padding(horizontal = 10.dp, vertical = 6.dp)
           ) {
@@ -372,7 +372,7 @@ fun HomeScreen(
                       .height(3.dp)
                       .background(
                         Brush.horizontalGradient(
-                          listOf(AccentIndigo, AccentIndigoLight, Color.White)
+                          listOf(AccentPrimary, AccentPrimaryLight, Color.White)
                         )
                       )
                   )
@@ -427,14 +427,14 @@ fun HomeScreen(
                   )
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                  selectedContainerColor = AccentIndigo,
+                  selectedContainerColor = AccentPrimary,
                   selectedLabelColor = Color.White,
                   containerColor = DarkSurfaceCard,
                   labelColor = TextSecondary
                 ),
                 border = FilterChipDefaults.filterChipBorder(
                   borderColor = DarkBorder,
-                  selectedBorderColor = AccentIndigo,
+                  selectedBorderColor = AccentPrimaryLight,
                   enabled = true,
                   selected = isSelected
                 )
@@ -488,9 +488,9 @@ fun HomeScreen(
             behaviors.forEach { behavior ->
               val isBehaviorActive = overlayConfig.behavior == behavior
               Surface(
-                color = if (isBehaviorActive) AccentIndigo else DarkSurfaceCard,
+                color = if (isBehaviorActive) AccentPrimary else DarkSurfaceCard,
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, if (isBehaviorActive) AccentIndigoLight else DarkBorder),
+                border = BorderStroke(1.dp, if (isBehaviorActive) AccentPrimaryLight else DarkBorder),
                 modifier = Modifier
                   .weight(1f)
                   .height(38.dp)
@@ -520,7 +520,7 @@ fun HomeScreen(
       // ─── PRIMARY ACTION BUTTONS (SELECT VIDEO / TRY SAMPLE) ───
       if (isLoading) {
         CircularProgressIndicator(
-          color = AccentIndigo,
+          color = AccentPrimary,
           modifier = Modifier
             .size(44.dp)
             .padding(8.dp)
@@ -532,8 +532,8 @@ fun HomeScreen(
           color = TextSecondary
         )
       } else {
-        // Primary: Select Video from Device Gallery
-        Button(
+        // Primary: Select Video from Device Gallery (with gradient + 16dp spot shadow)
+        Surface(
           onClick = {
             try {
               photoPickerLauncher.launch(
@@ -543,36 +543,43 @@ fun HomeScreen(
               filePickerLauncher.launch("video/*")
             }
           },
-          colors = ButtonDefaults.buttonColors(
-            containerColor = AccentIndigo,
-            contentColor = Color.White
-          ),
           shape = RoundedCornerShape(18.dp),
+          color = Color.Transparent,
           modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .shadow(12.dp, RoundedCornerShape(18.dp), spotColor = AccentIndigo)
+            .shadow(16.dp, RoundedCornerShape(18.dp), spotColor = AccentPrimary)
             .testTag("select_video_button")
         ) {
-          Icon(
-            imageVector = Icons.Default.VideoLibrary,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(22.dp)
-          )
-          Spacer(modifier = Modifier.width(10.dp))
-          Column {
-            Text(
-              text = "Select Video from Gallery",
-              fontSize = 15.sp,
-              fontWeight = FontWeight.Bold,
-              color = Color.White
-            )
-            Text(
-              text = "Supports Reels, Shorts, TikTok, Clips • MP4, MOV, WEBM",
-              fontSize = 10.5.sp,
-              color = Color.White.copy(alpha = 0.85f)
-            )
+          Box(
+            contentAlignment = Alignment.CenterStart,
+            modifier = Modifier
+              .fillMaxSize()
+              .background(Brush.linearGradient(listOf(AccentPrimary, AccentPrimaryActive)))
+              .padding(horizontal = 18.dp)
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = Icons.Default.VideoLibrary,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+              )
+              Spacer(modifier = Modifier.width(12.dp))
+              Column {
+                Text(
+                  text = "Select Video from Gallery",
+                  fontSize = 15.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = Color.White
+                )
+                Text(
+                  text = "Supports Reels, Shorts, TikTok, Clips • MP4, MOV, WEBM",
+                  fontSize = 10.5.sp,
+                  color = Color.White.copy(alpha = 0.85f)
+                )
+              }
+            }
           }
         }
 
@@ -590,7 +597,7 @@ fun HomeScreen(
               contentColor = TextPrimary
             ),
             border = BorderStroke(1.dp, DarkBorder),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier
               .weight(1f)
               .height(48.dp)
@@ -611,7 +618,7 @@ fun HomeScreen(
               contentColor = TextPrimary
             ),
             border = BorderStroke(1.dp, DarkBorder),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier
               .weight(1.1f)
               .height(48.dp)
@@ -620,7 +627,7 @@ fun HomeScreen(
             Icon(
               imageVector = Icons.Default.PlayArrow,
               contentDescription = null,
-              tint = AccentIndigoLight,
+              tint = AccentPrimaryLight,
               modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
@@ -686,8 +693,8 @@ fun HomeScreen(
 
       Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, AccentIndigoLight.copy(alpha = 0.4f)),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -732,15 +739,16 @@ fun HomeScreen(
             }
 
             Surface(
-              color = AccentIndigoMuted,
-              shape = RoundedCornerShape(6.dp)
+              color = AccentGold.copy(alpha = 0.15f),
+              shape = RoundedCornerShape(8.dp),
+              border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.4f))
             ) {
               Text(
                 text = "Pro Edition",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = AccentIndigoLight,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                color = AccentGold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
               )
             }
           }
@@ -817,7 +825,7 @@ fun HomeScreen(
                   Icon(
                     imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                     contentDescription = "Open GitHub",
-                    tint = AccentIndigoLight,
+                    tint = AccentPrimaryLight,
                     modifier = Modifier.size(16.dp)
                   )
                 }
@@ -881,14 +889,14 @@ private fun WorkflowStepCard(
         modifier = Modifier
           .size(30.dp)
           .clip(CircleShape)
-          .background(AccentIndigoMuted)
-          .border(1.dp, AccentIndigoLight.copy(alpha = 0.3f), CircleShape)
+          .background(AccentPrimaryMuted)
+          .border(1.dp, AccentPrimaryLight.copy(alpha = 0.3f), CircleShape)
       ) {
         Text(
           text = stepNumber,
           fontSize = 12.sp,
           fontWeight = FontWeight.Bold,
-          color = AccentIndigoLight
+          color = AccentPrimaryLight
         )
       }
 

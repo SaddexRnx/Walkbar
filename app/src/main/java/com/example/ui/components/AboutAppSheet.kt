@@ -9,7 +9,6 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,10 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Button
@@ -43,7 +39,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -51,23 +46,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AccentCyan
+import com.example.ui.theme.AccentGold
 import com.example.ui.theme.AccentGreen
-import com.example.ui.theme.AccentIndigo
-import com.example.ui.theme.AccentIndigoLight
-import com.example.ui.theme.AccentIndigoMuted
-import com.example.ui.theme.DarkBackground
+import com.example.ui.theme.AccentPrimary
+import com.example.ui.theme.AccentPrimaryActive
+import com.example.ui.theme.AccentPrimaryLight
+import com.example.ui.theme.AccentPrimaryMuted
 import com.example.ui.theme.DarkBorder
-import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceCard
 import com.example.ui.theme.DarkSurfaceElevated
 import com.example.ui.theme.TextMuted
@@ -87,6 +82,7 @@ fun AboutAppSheet(
     onDismissRequest = onDismissRequest,
     sheetState = sheetState,
     containerColor = DarkSurfaceElevated,
+    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     scrimColor = Color(0x99000000)
   ) {
     Column(
@@ -105,7 +101,7 @@ fun AboutAppSheet(
           modifier = Modifier
             .size(52.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Brush.linearGradient(listOf(AccentIndigo, AccentCyan)))
+            .background(Brush.linearGradient(listOf(AccentPrimary, AccentPrimaryActive)))
         ) {
           Icon(
             imageVector = Icons.Default.AutoAwesome,
@@ -127,14 +123,15 @@ fun AboutAppSheet(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Surface(
-              color = AccentIndigoMuted,
-              shape = RoundedCornerShape(6.dp)
+              color = AccentGold.copy(alpha = 0.15f),
+              shape = RoundedCornerShape(8.dp),
+              border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.4f))
             ) {
               Text(
                 text = "v1.2.0 Pro",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = AccentIndigoLight,
+                color = AccentGold,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
               )
             }
@@ -153,8 +150,8 @@ fun AboutAppSheet(
       // ─── 2. DEVELOPER PROFILE CARD (GitHub: SaddexRnx) ───
       Card(
         colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, AccentIndigoLight.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -260,7 +257,7 @@ fun AboutAppSheet(
             }
           }
 
-          Spacer(modifier = Modifier.height(12.dp))
+          Spacer(modifier = Modifier.height(14.dp))
 
           // Open in Browser Button
           Button(
@@ -276,12 +273,13 @@ fun AboutAppSheet(
             },
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-              containerColor = AccentIndigo,
+              containerColor = AccentPrimary,
               contentColor = Color.White
             ),
             modifier = Modifier
               .fillMaxWidth()
-              .height(44.dp)
+              .height(46.dp)
+              .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = AccentPrimary)
               .testTag("open_github_button")
           ) {
             Icon(
@@ -302,7 +300,55 @@ fun AboutAppSheet(
 
       Spacer(modifier = Modifier.height(18.dp))
 
-      // ─── 3. HOW WALKBAR WORKS & ARCHITECTURE ───
+      // ─── 3. UPLOAD ALIGNMENT & SCREEN CROP NOTICE ───
+      Text(
+        text = "UPLOAD ALIGNMENT & SAFE FRAMING",
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        color = TextMuted
+      )
+
+      Spacer(modifier = Modifier.height(10.dp))
+
+      Card(
+        colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.4f)),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(
+          modifier = Modifier.padding(14.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              imageVector = Icons.Default.AutoAwesome,
+              contentDescription = null,
+              tint = AccentGold,
+              modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = "Why Uploaded Videos Crop Differently",
+              fontSize = 13.sp,
+              fontWeight = FontWeight.Bold,
+              color = TextPrimary
+            )
+          }
+
+          Text(
+            text = "Walkbar can position your character precisely within the video you export. Once uploaded, TikTok/Instagram/Facebook each crop videos to fit YOUR phone\'s screen — for best alignment, export using the \'Match My Screen\' framing mode, and avoid placing characters at the extreme bottom edge.",
+            fontSize = 11.5.sp,
+            color = TextSecondary,
+            lineHeight = 16.sp
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(18.dp))
+
+      // ─── 4. HOW WALKBAR WORKS & ARCHITECTURE ───
       Text(
         text = "HOW WALKBAR WORKS",
         fontSize = 11.sp,
@@ -315,9 +361,9 @@ fun AboutAppSheet(
 
       FeatureInfoRow(
         icon = Icons.Default.Speed,
-        iconTint = AccentIndigoLight,
+        iconTint = AccentPrimaryLight,
         title = "Dynamic Stride Kinematics",
-        description = "Computes video length, horizontal span, and character stride scale to perfectly pace leg swings without awkward foot sliding across progress bars."
+        description = "Computes video length, horizontal span, and character stride scale to naturally pace leg swings without awkward foot sliding across progress bars."
       )
 
       Spacer(modifier = Modifier.height(10.dp))
@@ -342,7 +388,7 @@ fun AboutAppSheet(
 
       FeatureInfoRow(
         icon = Icons.Default.VerifiedUser,
-        iconTint = AccentIndigoLight,
+        iconTint = AccentPrimaryLight,
         title = "Bit-for-Bit Audio Passthrough",
         description = "Preserves 100% of original AAC/Opus audio quality and volume dynamics without lossy re-encoding or synchronization drift."
       )

@@ -4,9 +4,6 @@ package com.example.ui.screens
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,7 +11,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -57,14 +53,15 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.CropFree
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -100,7 +97,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -120,13 +116,16 @@ import com.example.model.VideoMetadata
 import com.example.player.WalkbarPlayerManager
 import com.example.ui.components.AboutAppSheet
 import com.example.ui.components.PlatformOverlayGuide
+import com.example.ui.components.SafeZoneOverlayGuide
 import com.example.ui.components.SleekCharacterPicker
-import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
+import com.example.ui.theme.AccentGold
 import com.example.ui.theme.AccentGreen
-import com.example.ui.theme.AccentIndigo
-import com.example.ui.theme.AccentIndigoLight
-import com.example.ui.theme.AccentIndigoMuted
+import com.example.ui.theme.AccentPrimary
+import com.example.ui.theme.AccentPrimaryActive
+import com.example.ui.theme.AccentPrimaryLight
+import com.example.ui.theme.AccentPrimaryMuted
+import com.example.ui.theme.AccentRed
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkBorderSubtle
@@ -152,6 +151,7 @@ fun EditorScreen(
   onHorizontalRangeChanged: (Float, Float) -> Unit,
   onToggleReverseDirection: () -> Unit,
   onToggleInstagramGuide: () -> Unit,
+  onToggleSafeZoneGuide: () -> Unit,
   onExportFpsOptionChanged: (ExportFpsOption) -> Unit,
   onBackClicked: () -> Unit,
   onExportClicked: () -> Unit,
@@ -205,7 +205,7 @@ fun EditorScreen(
           Text(
             text = "${selectedCharacter.name} • ${overlayConfig.targetPlatform.displayName}",
             fontSize = 11.sp,
-            color = AccentIndigoLight,
+            color = AccentPrimaryLight,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
           )
@@ -246,7 +246,19 @@ fun EditorScreen(
           Icon(
             imageVector = if (isCleanPreviewMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
             contentDescription = if (isCleanPreviewMode) "Show Character Overlay" else "Hide Character (Clean)",
-            tint = if (isCleanPreviewMode) AccentAmber else TextSecondary
+            tint = if (isCleanPreviewMode) AccentGold else TextSecondary
+          )
+        }
+
+        // Toggle Safe Zone Crop Guide
+        IconButton(
+          onClick = onToggleSafeZoneGuide,
+          modifier = Modifier.testTag("toggle_safe_zone_guide")
+        ) {
+          Icon(
+            imageVector = Icons.Default.CropFree,
+            contentDescription = "Toggle Safe Zone Crop Guide",
+            tint = if (overlayConfig.showSafeZoneGuide) AccentCyan else TextMuted
           )
         }
 
@@ -258,73 +270,80 @@ fun EditorScreen(
           Icon(
             imageVector = Icons.Default.Tune,
             contentDescription = "Toggle Timeline Reference Guide",
-            tint = if (overlayConfig.showInstagramPreviewGuide) AccentIndigoLight else TextMuted
+            tint = if (overlayConfig.showInstagramPreviewGuide) AccentPrimaryLight else TextMuted
           )
         }
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        // Save & Export Button
-        Button(
+        // Save & Export Button with Gradient + Shadow
+        Surface(
           onClick = onExportClicked,
           shape = CircleShape,
-          colors = ButtonDefaults.buttonColors(
-            containerColor = AccentIndigo,
-            contentColor = Color.White
-          ),
-          contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+          color = Color.Transparent,
           modifier = Modifier
             .padding(end = 12.dp)
+            .shadow(12.dp, CircleShape, spotColor = AccentPrimary)
             .testTag("export_video_button")
         ) {
-          Icon(
-            imageVector = Icons.Default.Save,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(15.dp)
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = "EXPORT",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.8.sp,
-            color = Color.White
-          )
+          Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+              .background(Brush.linearGradient(listOf(AccentPrimary, AccentPrimaryActive)))
+              .padding(horizontal = 16.dp, vertical = 7.dp)
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = Icons.Default.Save,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(15.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = "EXPORT",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = Color.White
+              )
+            }
+          }
         }
       },
       colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
     )
 
-    // ─── 2. VIDEO VIEWPORT WITH DIRECT INTERACTIVE TOUCH DRAGGING ───
+    // ─── 2. VIDEO VIEWPORT WITH DIRECT INTERACTIVE TOUCH DRAGGING (1.6f weight) ───
     Box(
       contentAlignment = Alignment.Center,
       modifier = Modifier
         .fillMaxWidth()
-        .weight(1.05f)
-        .background(Color(0xFF000000))
-        .padding(horizontal = 10.dp, vertical = 2.dp)
+        .weight(1.6f)
+        .background(Color(0xFF07070A))
+        .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
       BoxWithConstraints(
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxSize()
       ) {
-        val videoAspect = metadata.aspectRatio.coerceIn(0.4f, 2.4f)
-        val containerAspect = maxWidth / maxHeight
+        // Calculate target aspect ratio based on Framing Mode
+        val targetAspect = overlayConfig.getEffectiveAspectRatio(metadata.aspectRatio)
 
-        val (contentWidth, contentHeight) = if (containerAspect > videoAspect) {
-          Pair(maxHeight * videoAspect, maxHeight)
+        val containerAspect = maxWidth / maxHeight
+        val (contentWidth, contentHeight) = if (containerAspect > targetAspect) {
+          Pair(maxHeight * targetAspect, maxHeight)
         } else {
-          Pair(maxWidth, maxWidth / videoAspect)
+          Pair(maxWidth, maxWidth / targetAspect)
         }
 
         Box(
           modifier = Modifier
             .size(contentWidth, contentHeight)
-            .shadow(20.dp, RoundedCornerShape(20.dp))
+            .shadow(24.dp, RoundedCornerShape(20.dp), spotColor = AccentPrimary.copy(alpha = 0.35f))
             .clip(RoundedCornerShape(20.dp))
-            .border(1.dp, DarkBorderSubtle, RoundedCornerShape(20.dp))
-            .background(Color(0xFF101014))
+            .border(1.dp, DarkBorder, RoundedCornerShape(20.dp))
+            .background(Color(0xFF0D0D12))
             .pointerInput(Unit) {
               detectDragGestures(
                 onDragStart = { isDraggingPosition = true },
@@ -355,14 +374,18 @@ fun EditorScreen(
               )
             }
         ) {
-          // Media3 ExoPlayer View
+          // Media3 ExoPlayer View (ZOOM mode when center-cropping to fill frame)
           AndroidView(
             factory = { ctx ->
               PlayerView(ctx).apply {
                 player = playerManager.getPlayer()
                 useController = false
                 setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                resizeMode = if (overlayConfig.framingMode != VideoFramingMode.ORIGINAL) {
+                  AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                } else {
+                  AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
                 layoutParams = FrameLayout.LayoutParams(
                   ViewGroup.LayoutParams.MATCH_PARENT,
                   ViewGroup.LayoutParams.MATCH_PARENT
@@ -374,8 +397,25 @@ fun EditorScreen(
               if (playerView.player != currentPlayer) {
                 playerView.player = currentPlayer
               }
+              playerView.resizeMode = if (overlayConfig.framingMode != VideoFramingMode.ORIGINAL) {
+                AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+              } else {
+                AspectRatioFrameLayout.RESIZE_MODE_FIT
+              }
             },
             modifier = Modifier.fillMaxSize()
+          )
+
+          // Subtle vignette effect
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(
+                Brush.radialGradient(
+                  colors = listOf(Color.Transparent, Color(0x33000000)),
+                  radius = 800f
+                )
+              )
           )
 
           // Walking Companion Overlay Canvas with Liquid Smooth Motion
@@ -401,12 +441,20 @@ fun EditorScreen(
             )
           }
 
+          // Visual Safe Zone Crop-Risk Guide Overlay
+          if (overlayConfig.showSafeZoneGuide) {
+            SafeZoneOverlayGuide(
+              verticalOffsetPercent = overlayConfig.verticalOffsetPercent,
+              modifier = Modifier.fillMaxSize()
+            )
+          }
+
           // Interactive Dragging Height Indicator Pill
           if (isDraggingPosition) {
             Surface(
-              color = Color(0xEE1E293B),
+              color = Color(0xEE1B1B24),
               shape = RoundedCornerShape(20.dp),
-              border = BorderStroke(1.5.dp, AccentIndigo),
+              border = BorderStroke(1.5.dp, AccentPrimary),
               modifier = Modifier
                 .align(Alignment.Center)
                 .padding(12.dp)
@@ -427,9 +475,9 @@ fun EditorScreen(
             }
           }
 
-          // Top Right Platform & Specs Badge
+          // Top Right Platform & Specs Frosted Glass Badge
           Surface(
-            color = Color(0x99000000),
+            color = Color(0xAA15151C),
             shape = RoundedCornerShape(8.dp),
             border = BorderStroke(0.5.dp, Color(0x33FFFFFF)),
             modifier = Modifier
@@ -440,17 +488,18 @@ fun EditorScreen(
               text = "${overlayConfig.targetPlatform.iconEmoji} ${overlayConfig.targetPlatform.displayName} (${(overlayConfig.verticalOffsetPercent * 100).toInt()}%)",
               fontSize = 9.5.sp,
               fontFamily = FontFamily.Monospace,
-              fontWeight = FontWeight.Medium,
+              fontWeight = FontWeight.SemiBold,
               color = AccentCyan,
-              modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+              modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
             )
           }
 
-          // Clean mode badge
+          // Clean mode frosted glass badge
           if (isCleanPreviewMode) {
             Surface(
-              color = AccentAmber.copy(alpha = 0.85f),
+              color = Color(0xDD2D1E0A),
               shape = RoundedCornerShape(8.dp),
+              border = BorderStroke(0.5.dp, AccentGold),
               modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(8.dp)
@@ -459,8 +508,8 @@ fun EditorScreen(
                 text = "CLEAN ORIGINAL PREVIEW",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                color = AccentGold,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
               )
             }
           }
@@ -509,7 +558,7 @@ fun EditorScreen(
           Icon(
             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
             contentDescription = if (isPlaying) "Pause" else "Play",
-            tint = AccentIndigo
+            tint = AccentPrimary
           )
         }
 
@@ -536,7 +585,7 @@ fun EditorScreen(
           },
           colors = SliderDefaults.colors(
             thumbColor = Color.White,
-            activeTrackColor = AccentIndigo,
+            activeTrackColor = AccentPrimary,
             inactiveTrackColor = DarkBorder
           ),
           modifier = Modifier
@@ -546,14 +595,14 @@ fun EditorScreen(
       }
     }
 
-    // ─── 4. BEAUTIFUL SCROLLABLE SETTINGS MENU ───
+    // ─── 4. BEAUTIFUL SCROLLABLE SETTINGS MENU (0.75f weight) ───
     Surface(
       color = DarkSurfaceElevated,
-      shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+      shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
       border = BorderStroke(1.dp, DarkBorder),
       modifier = Modifier
         .fillMaxWidth()
-        .weight(0.95f)
+        .weight(0.75f)
     ) {
       Column(
         modifier = Modifier.fillMaxSize()
@@ -562,12 +611,12 @@ fun EditorScreen(
         ScrollableTabRow(
           selectedTabIndex = selectedTab,
           containerColor = DarkSurfaceElevated,
-          contentColor = AccentIndigo,
+          contentColor = AccentPrimary,
           edgePadding = 12.dp,
           indicator = { tabPositions ->
             TabRowDefaults.SecondaryIndicator(
               Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-              color = AccentIndigo,
+              color = AccentPrimary,
               height = 3.dp
             )
           },
@@ -626,8 +675,8 @@ fun EditorScreen(
                     modifier = Modifier
                       .size(54.dp)
                       .clip(RoundedCornerShape(12.dp))
-                      .background(AccentIndigoMuted)
-                      .border(1.dp, AccentIndigoLight, RoundedCornerShape(12.dp))
+                      .background(AccentPrimaryMuted)
+                      .border(1.dp, AccentPrimaryLight, RoundedCornerShape(12.dp))
                   ) {
                     Canvas(modifier = Modifier.size(42.dp)) {
                       val w = size.width
@@ -662,13 +711,13 @@ fun EditorScreen(
                       )
                       Spacer(modifier = Modifier.width(6.dp))
                       Surface(
-                        color = Color(0x336366F1),
+                        color = AccentPrimaryMuted,
                         shape = RoundedCornerShape(6.dp)
                       ) {
                         Text(
                           text = selectedCharacter.category.displayName,
                           fontSize = 9.5.sp,
-                          color = AccentIndigoLight,
+                          color = AccentPrimaryLight,
                           fontWeight = FontWeight.SemiBold,
                           modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
@@ -715,14 +764,14 @@ fun EditorScreen(
                     },
                     shape = RoundedCornerShape(10.dp),
                     colors = FilterChipDefaults.filterChipColors(
-                      selectedContainerColor = AccentIndigo,
+                      selectedContainerColor = AccentPrimary,
                       selectedLabelColor = Color.White,
                       containerColor = DarkSurfaceCard,
                       labelColor = TextSecondary
                     ),
                     border = FilterChipDefaults.filterChipBorder(
                       borderColor = DarkBorder,
-                      selectedBorderColor = AccentIndigo,
+                      selectedBorderColor = AccentPrimary,
                       enabled = true,
                       selected = isSelected
                     )
@@ -768,7 +817,7 @@ fun EditorScreen(
                     )
                   }
 
-                  // Precision Stepper Row (+0.1% / -0.1%)
+                  // Precision Stepper Row (+0.2% / -0.2%)
                   Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -806,17 +855,113 @@ fun EditorScreen(
                     valueRange = 0.00f..0.22f,
                     colors = SliderDefaults.colors(
                       thumbColor = Color.White,
-                      activeTrackColor = AccentIndigo,
+                      activeTrackColor = AccentPrimary,
                       inactiveTrackColor = DarkBorder
                     ),
                     modifier = Modifier.testTag("vertical_offset_slider")
                   )
+
+                  // Inline Crop Risk Warning when placed in bottom danger zone
+                  if (overlayConfig.isInCropRiskZone()) {
+                    Surface(
+                      color = Color(0x28EF4444),
+                      shape = RoundedCornerShape(10.dp),
+                      border = BorderStroke(1.dp, Color(0x77EF4444)),
+                      modifier = Modifier.fillMaxWidth()
+                    ) {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(10.dp)
+                      ) {
+                        Icon(
+                          imageVector = Icons.Default.WarningAmber,
+                          contentDescription = null,
+                          tint = AccentRed,
+                          modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                          text = "This position may get cropped when uploaded to some apps — consider moving up.",
+                          fontSize = 11.sp,
+                          color = TextPrimary,
+                          lineHeight = 15.sp
+                        )
+                      }
+                    }
+                  }
 
                   Text(
                     text = "💡 Tip: You can also touch or drag anywhere on the video preview above to position the character directly on your progress bar.",
                     fontSize = 10.sp,
                     color = TextSecondary,
                     lineHeight = 14.sp
+                  )
+                }
+              }
+
+              // Safe Zone & Visual Alignment Tools Card
+              Card(
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+                ) {
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                  ) {
+                    Icon(
+                      imageVector = Icons.Default.CropFree,
+                      contentDescription = null,
+                      tint = if (overlayConfig.showSafeZoneGuide) AccentCyan else TextMuted,
+                      modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                      Text(
+                        text = "10-15% Crop Safe Zone Guide",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                      )
+                      Text(
+                        text = "Visualizes top & bottom areas at risk of platform cropping",
+                        fontSize = 10.sp,
+                        color = TextSecondary
+                      )
+                    }
+                  }
+
+                  FilterChip(
+                    selected = overlayConfig.showSafeZoneGuide,
+                    onClick = onToggleSafeZoneGuide,
+                    shape = RoundedCornerShape(8.dp),
+                    label = {
+                      Text(
+                        text = if (overlayConfig.showSafeZoneGuide) "Visible" else "Off",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                      )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                      selectedContainerColor = AccentCyan,
+                      selectedLabelColor = Color.Black,
+                      containerColor = DarkSurfaceElevated,
+                      labelColor = TextSecondary
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                      borderColor = DarkBorder,
+                      selectedBorderColor = AccentCyan,
+                      enabled = true,
+                      selected = overlayConfig.showSafeZoneGuide
+                    )
                   )
                 }
               }
@@ -846,9 +991,9 @@ fun EditorScreen(
                     modifier = Modifier.fillMaxWidth()
                   ) {
                     Surface(
-                      color = if (overlayConfig.verticalOffsetPercent <= 0.006f) AccentIndigo else DarkSurfaceElevated,
+                      color = if (overlayConfig.verticalOffsetPercent <= 0.006f) AccentPrimary else DarkSurfaceElevated,
                       shape = RoundedCornerShape(8.dp),
-                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent <= 0.006f) AccentIndigoLight else DarkBorder),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent <= 0.006f) AccentPrimaryLight else DarkBorder),
                       modifier = Modifier
                         .weight(1f)
                         .clickable { onVerticalOffsetChanged(0.004f) }
@@ -860,9 +1005,9 @@ fun EditorScreen(
                     }
 
                     Surface(
-                      color = if (overlayConfig.verticalOffsetPercent in 0.007f..0.015f) AccentIndigo else DarkSurfaceElevated,
+                      color = if (overlayConfig.verticalOffsetPercent in 0.007f..0.015f) AccentPrimary else DarkSurfaceElevated,
                       shape = RoundedCornerShape(8.dp),
-                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent in 0.007f..0.015f) AccentIndigoLight else DarkBorder),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent in 0.007f..0.015f) AccentPrimaryLight else DarkBorder),
                       modifier = Modifier
                         .weight(1f)
                         .clickable { onVerticalOffsetChanged(0.009f) }
@@ -874,9 +1019,9 @@ fun EditorScreen(
                     }
 
                     Surface(
-                      color = if (overlayConfig.verticalOffsetPercent in 0.016f..0.032f) AccentIndigo else DarkSurfaceElevated,
+                      color = if (overlayConfig.verticalOffsetPercent in 0.016f..0.032f) AccentPrimary else DarkSurfaceElevated,
                       shape = RoundedCornerShape(8.dp),
-                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent in 0.016f..0.032f) AccentIndigoLight else DarkBorder),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent in 0.016f..0.032f) AccentPrimaryLight else DarkBorder),
                       modifier = Modifier
                         .weight(1f)
                         .clickable { onVerticalOffsetChanged(0.024f) }
@@ -888,9 +1033,9 @@ fun EditorScreen(
                     }
 
                     Surface(
-                      color = if (overlayConfig.verticalOffsetPercent > 0.035f) AccentIndigo else DarkSurfaceElevated,
+                      color = if (overlayConfig.verticalOffsetPercent > 0.035f) AccentPrimary else DarkSurfaceElevated,
                       shape = RoundedCornerShape(8.dp),
-                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent > 0.035f) AccentIndigoLight else DarkBorder),
+                      border = BorderStroke(1.dp, if (overlayConfig.verticalOffsetPercent > 0.035f) AccentPrimaryLight else DarkBorder),
                       modifier = Modifier
                         .weight(1f)
                         .clickable { onVerticalOffsetChanged(0.075f) }
@@ -958,7 +1103,7 @@ fun EditorScreen(
                       Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                      selectedContainerColor = AccentIndigo,
+                      selectedContainerColor = AccentPrimary,
                       selectedLabelColor = Color.White,
                       selectedLeadingIconColor = Color.White,
                       containerColor = DarkSurfaceCard,
@@ -966,7 +1111,7 @@ fun EditorScreen(
                     ),
                     border = FilterChipDefaults.filterChipBorder(
                       borderColor = DarkBorder,
-                      selectedBorderColor = AccentIndigo,
+                      selectedBorderColor = AccentPrimary,
                       enabled = true,
                       selected = isSelected
                     )
@@ -990,9 +1135,9 @@ fun EditorScreen(
                 ExportFpsOption.entries.forEach { option ->
                   val isSelected = overlayConfig.exportFpsOption == option
                   Surface(
-                    color = if (isSelected) AccentIndigo else DarkSurfaceCard,
+                    color = if (isSelected) AccentPrimary else DarkSurfaceCard,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, if (isSelected) AccentIndigoLight else DarkBorder),
+                    border = BorderStroke(1.dp, if (isSelected) AccentPrimaryLight else DarkBorder),
                     modifier = Modifier
                       .weight(1f)
                       .clickable { onExportFpsOptionChanged(option) }
@@ -1059,7 +1204,7 @@ fun EditorScreen(
                         Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
                       },
                       colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AccentIndigo,
+                        selectedContainerColor = AccentPrimary,
                         selectedLabelColor = Color.White,
                         selectedLeadingIconColor = Color.White,
                         containerColor = DarkSurfaceElevated,
@@ -1067,7 +1212,7 @@ fun EditorScreen(
                       ),
                       border = FilterChipDefaults.filterChipBorder(
                         borderColor = DarkBorder,
-                        selectedBorderColor = AccentIndigo,
+                        selectedBorderColor = AccentPrimary,
                         enabled = true,
                         selected = overlayConfig.reverseDirection
                       )
@@ -1087,7 +1232,7 @@ fun EditorScreen(
                         text = String.format("%.1f st/s", cadenceHz),
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AccentIndigoLight
+                        color = AccentPrimaryLight
                       )
                     }
 
@@ -1157,7 +1302,7 @@ fun EditorScreen(
                       text = "${(overlayConfig.startXPercent * 100).toInt()}% ➡ ${(overlayConfig.endXPercent * 100).toInt()}%",
                       fontSize = 11.sp,
                       fontFamily = FontFamily.Monospace,
-                      color = AccentIndigoLight
+                      color = AccentPrimaryLight
                     )
                   }
 
@@ -1169,7 +1314,7 @@ fun EditorScreen(
                     valueRange = 0.0f..1.0f,
                     colors = SliderDefaults.colors(
                       thumbColor = Color.White,
-                      activeTrackColor = AccentIndigo,
+                      activeTrackColor = AccentPrimary,
                       inactiveTrackColor = DarkBorder
                     )
                   )
@@ -1191,9 +1336,9 @@ fun EditorScreen(
                 VideoFramingMode.entries.forEach { mode ->
                   val isSelected = overlayConfig.framingMode == mode
                   Surface(
-                    color = if (isSelected) AccentIndigoMuted else DarkSurfaceCard,
+                    color = if (isSelected) AccentPrimaryMuted else DarkSurfaceCard,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, if (isSelected) AccentIndigo else DarkBorder),
+                    border = BorderStroke(1.dp, if (isSelected) AccentPrimary else DarkBorder),
                     modifier = Modifier
                       .fillMaxWidth()
                       .clickable { onFramingModeChanged(mode) }
@@ -1205,27 +1350,38 @@ fun EditorScreen(
                       Icon(
                         imageVector = if (mode == VideoFramingMode.PHONE_TALL_19_5_9) Icons.Default.Smartphone else if (mode == VideoFramingMode.REELS_9_16) Icons.Default.Crop else Icons.Default.AspectRatio,
                         contentDescription = null,
-                        tint = if (isSelected) AccentIndigoLight else TextSecondary,
+                        tint = if (isSelected) AccentPrimaryLight else TextSecondary,
                         modifier = Modifier.size(20.dp)
                       )
                       Spacer(modifier = Modifier.width(10.dp))
                       Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                          val modeTitle = if (mode == VideoFramingMode.MATCH_DEVICE_SCREEN) {
+                            "Match My Screen (${overlayConfig.deviceScreenRatioFormatted})"
+                          } else {
+                            mode.displayName
+                          }
+                          val modeSubtitle = if (mode == VideoFramingMode.MATCH_DEVICE_SCREEN) {
+                            "${overlayConfig.deviceScreenWidth}×${overlayConfig.deviceScreenHeight} Auto"
+                          } else {
+                            mode.subtitle
+                          }
+
                           Text(
-                            text = mode.displayName,
+                            text = modeTitle,
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                           )
                           Spacer(modifier = Modifier.width(6.dp))
                           Surface(
-                            color = Color(0x336366F1),
+                            color = AccentPrimaryMuted,
                             shape = RoundedCornerShape(4.dp)
                           ) {
                             Text(
-                              text = mode.subtitle,
+                              text = modeSubtitle,
                               fontSize = 9.sp,
-                              color = AccentIndigoLight,
+                              color = AccentPrimaryLight,
                               fontWeight = FontWeight.SemiBold,
                               modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                             )
@@ -1240,14 +1396,14 @@ fun EditorScreen(
                         )
                       }
                       if (isSelected) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = AccentIndigoLight, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Check, contentDescription = null, tint = AccentPrimaryLight, modifier = Modifier.size(18.dp))
                       }
                     }
                   }
                 }
               }
 
-              // Explain why black bars happen on TikTok
+              // Explain upload cropping & screen matching
               Card(
                 colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
                 shape = RoundedCornerShape(14.dp),
@@ -1261,17 +1417,17 @@ fun EditorScreen(
                   verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                   Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Info, contentDescription = null, tint = AccentAmber, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Info, contentDescription = null, tint = AccentGold, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                      text = "Why Do Black Bars Appear on TikTok?",
+                      text = "Why Upload Alignment Matters",
                       fontSize = 12.sp,
                       fontWeight = FontWeight.Bold,
                       color = TextPrimary
                     )
                   }
                   Text(
-                    text = "When downloading reels from Instagram or posting to TikTok on modern tall smartphones (19.5:9 / 6.19\" screens), TikTok automatically adds black bars at top and bottom if the video isn't full frame. This pushes TikTok's scrubber bar to the very bottom of the screen. Selecting '9:16 Fullscreen' or '6.19\" Tall Screen' above crops black borders and fills your screen completely!",
+                    text = "Walkbar positions your character precisely within the exported video. Once uploaded, TikTok, Instagram Reels, and Facebook crop vertical videos to fit the viewing phone's exact screen aspect ratio. For best alignment, export using 'Match My Screen' framing and avoid placing characters at the extreme bottom edge.",
                     fontSize = 10.5.sp,
                     color = TextSecondary,
                     lineHeight = 15.sp
@@ -1312,7 +1468,7 @@ fun EditorScreen(
                         text = metadata.formattedFps,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AccentIndigoLight
+                        color = AccentPrimaryLight
                       )
                     }
 

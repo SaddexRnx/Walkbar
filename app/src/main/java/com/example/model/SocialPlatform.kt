@@ -74,12 +74,20 @@ enum class SocialPlatform(
 
 enum class VideoFramingMode(
   val displayName: String,
-  val aspectRatio: Float?, // null = keep original, 9/16f = 0.5625f, 9/19.5f = 0.4615f
+  val aspectRatio: Float?, // null = dynamic / keep original
   val targetWidth: Int?,
   val targetHeight: Int?,
   val subtitle: String,
   val description: String
 ) {
+  MATCH_DEVICE_SCREEN(
+    displayName = "Match My Screen",
+    aspectRatio = null, // Dynamically computed from device DisplayMetrics
+    targetWidth = null,
+    targetHeight = null,
+    subtitle = "Auto-Fit Phone",
+    description = "Exports at your phone's exact screen ratio so TikTok/Instagram have nothing to crop upon upload"
+  ),
   ORIGINAL(
     displayName = "Original Ratio",
     aspectRatio = null,
@@ -97,11 +105,11 @@ enum class VideoFramingMode(
     description = "Standard 9:16 frame. Auto-crops black borders from downloaded reels"
   ),
   PHONE_TALL_19_5_9(
-    displayName = "6.19\" Screen (19.5:9)",
+    displayName = "19.5:9 Ultra-Tall",
     aspectRatio = 9f / 19.5f,
     targetWidth = 1080,
     targetHeight = 2340,
-    subtitle = "1080×2340 Full",
-    description = "Tall smartphone screen ratio. Prevents TikTok from adding black letterbox bars"
+    subtitle = "1080×2340 Fill",
+    description = "Tall smartphone screen ratio. Prevents black letterbox bars on 19.5:9 phones"
   )
 }

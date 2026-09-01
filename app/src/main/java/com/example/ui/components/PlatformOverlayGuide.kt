@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.GraphicEq
@@ -54,6 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.SocialPlatform
+import com.example.ui.theme.AccentGold
+import com.example.ui.theme.DarkBorder
+import com.example.ui.theme.DarkSurfaceElevated
 
 @Composable
 fun InstagramOverlayGuide(
@@ -76,9 +78,16 @@ fun PlatformOverlayGuide(
   Box(
     modifier = modifier.fillMaxSize()
   ) {
+    // 15% black scrim so simulated chrome doesn't compete with video footage
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(Color.Black.copy(alpha = 0.15f))
+    )
+
     // Top banner indicator
     Surface(
-      color = Color(0xDD12151C),
+      color = Color(0xDD15151C),
       shape = RoundedCornerShape(20.dp),
       border = BorderStroke(0.5.dp, Color(0x44FFFFFF)),
       modifier = Modifier
@@ -92,7 +101,7 @@ fun PlatformOverlayGuide(
         Icon(
           imageVector = Icons.Default.Visibility,
           contentDescription = null,
-          tint = Color(0xFFFF9F1C),
+          tint = AccentGold,
           modifier = Modifier.size(13.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
@@ -372,7 +381,7 @@ private fun InstagramSimulatedUI(progress: Float) {
           modifier = Modifier
             .size(26.dp)
             .clip(CircleShape)
-            .background(Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFFA855F7), Color(0xFFEC4899))))
+            .background(Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFFA855F7), Color(0xFFEC4899))))
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(text = "walkbar_reels", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -466,7 +475,7 @@ private fun PhoneScreenTallSimulatedUI(progress: Float) {
     Box(
       modifier = Modifier
         .fillMaxSize()
-        .border(1.5.dp, Color(0x6600E5FF), RoundedCornerShape(16.dp))
+        .border(1.5.dp, Color(0x6638BDF8), RoundedCornerShape(16.dp))
     )
 
     // Ultra Bottom Scrubber
@@ -481,14 +490,15 @@ private fun PhoneScreenTallSimulatedUI(progress: Float) {
         modifier = Modifier
           .fillMaxWidth(progress.coerceIn(0f, 1f))
           .height(2.5.dp)
-          .background(Color(0xFF00E5FF))
+          .background(Color(0xFF38BDF8))
       )
     }
 
     // Top pill badge
     Surface(
-      color = Color(0xCC000000),
+      color = Color(0xCC15151C),
       shape = RoundedCornerShape(10.dp),
+      border = BorderStroke(1.dp, DarkBorder),
       modifier = Modifier
         .align(Alignment.BottomCenter)
         .padding(bottom = 12.dp)
@@ -497,7 +507,7 @@ private fun PhoneScreenTallSimulatedUI(progress: Float) {
         text = "19.5:9 Edge-to-Edge Fill • Zero Black Bars on Tall Screens",
         fontSize = 9.5.sp,
         fontWeight = FontWeight.Medium,
-        color = Color(0xFF00E5FF),
+        color = Color(0xFF38BDF8),
         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
       )
     }
@@ -521,7 +531,7 @@ private fun CustomSimulatedUI(progress: Float) {
         modifier = Modifier
           .fillMaxWidth(progress.coerceIn(0f, 1f))
           .height(3.dp)
-          .background(Color(0xFF6366F1))
+          .background(Color(0xFF8B5CF6))
       )
     }
   }

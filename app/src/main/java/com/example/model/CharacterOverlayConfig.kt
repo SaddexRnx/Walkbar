@@ -25,8 +25,12 @@ data class CharacterOverlayConfig(
   val facingRight: Boolean = true,
   val reverseDirection: Boolean = false,
   val targetPlatform: SocialPlatform = SocialPlatform.TIKTOK,
-  val framingMode: VideoFramingMode = VideoFramingMode.ORIGINAL,
-  val showInstagramPreviewGuide: Boolean = true,
+  val framingMode: VideoFramingMode = VideoFramingMode.MATCH_DEVICE_SCREEN,
+  val deviceScreenWidth: Int = 1080,
+  val deviceScreenHeight: Int = 2340,
+  val deviceScreenRatioFormatted: String = "9:19.5",
+  val showInstagramPreviewGuide: Boolean = false,
+  val showSafeZoneGuide: Boolean = false,
   val exportFpsOption: ExportFpsOption = ExportFpsOption.FPS_60
 ) {
   val showPlatformGuide: Boolean
@@ -41,4 +45,22 @@ data class CharacterOverlayConfig(
 
   val effectiveFacingRight: Boolean
     get() = if (reverseDirection) !facingRight else facingRight
+
+  fun getEffectiveAspectRatio(sourceAspectRatio: Float): Float {
+    return when (framingMode) {
+      VideoFramingMode.MATCH_DEVICE_SCREEN -> {
+        if (deviceScreenHeight > 0 && deviceScreenWidth > 0) {
+          (deviceScreenWidth.toFloat() / deviceScreenHeight.toFloat()).coerceIn(0.35f, 1.0f)
+        } else {
+          9f / 19.5f
+        }
+      }
+      VideoFramingMode.REELS_9_16 -> 9f / 16f
+      VideoFramingMode.PHONE_TALL_19_5_9 -> 9f / 19.5f
+      VideoFramingMode.ORIGINAL -> sourceAspectRatio.coerceIn(0.35f, 2.5f)
+    }
+  }
+
+  // Returns true if vertical offset is located in the extreme bottom 1.2% crop-risk band
+  fun isInCropRiskZone(): Boolean = verticalOffsetPercent < 0.012f
 }

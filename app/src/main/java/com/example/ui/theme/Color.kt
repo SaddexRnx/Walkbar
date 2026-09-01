@@ -2,34 +2,36 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Sleek Interface Base Palette
-val DarkBackground = Color(0xFF0A0A0A)
-val DarkSurface = Color(0xFF121214)
-val DarkSurfaceElevated = Color(0xFF161618)
-val DarkSurfaceCard = Color(0xFF1E1E22)
-val DarkSurfaceHover = Color(0xFF27272A)
-val DarkBorder = Color(0xFF27272A)
+// Base surfaces — deep charcoal, not pure black (pure black feels cheap/harsh; near-black with warmth feels premium)
+val DarkBackground = Color(0xFF0D0D12)
+val DarkSurface = Color(0xFF15151C)
+val DarkSurfaceElevated = Color(0xFF1B1B24)
+val DarkSurfaceCard = Color(0xFF212129)
+val DarkBorder = Color(0xFF2C2C36)
 val DarkBorderSubtle = Color(0x1FFFFFFF)
 
-// Sleek Primary Accent (Indigo)
-val AccentIndigo = Color(0xFF6366F1)
-val AccentIndigoActive = Color(0xFF4F46E5)
-val AccentIndigoLight = Color(0xFF818CF8)
-val AccentIndigoMuted = Color(0x266366F1)
+// Primary accent — refined violet (replaces AccentIndigo everywhere)
+val AccentPrimary = Color(0xFF8B5CF6)
+val AccentPrimaryLight = Color(0xFFA78BFA)
+val AccentPrimaryMuted = Color(0x298B5CF6)
+val AccentPrimaryActive = Color(0xFF7C3AED)
 
-// Complementary Accents
-val AccentCoral = Color(0xFF6366F1) // Remapped to sleek Indigo
-val AccentAmber = Color(0xFFF59E0B)
+// Secondary accent — warm gold, used ONLY for premium/highlight moments (Pro badge, export success, active platform pill) — never as a base UI color
+val AccentGold = Color(0xFFF0B429)
+
+// Functional accents (keep these, they already work)
 val AccentCyan = Color(0xFF38BDF8)
 val AccentGreen = Color(0xFF10B981)
+val AccentRed = Color(0xFFEF4444)
 
-// Sleek Slate/Zinc Typography
+// Typography
 val TextPrimary = Color(0xFFF8FAFC)
 val TextSecondary = Color(0xFFA1A1AA)
 val TextMuted = Color(0xFF71717A)
 
-// Instagram Reference
+// Platform References
 val InstagramBarRed = Color(0xFFFE2C55)
 val InstagramBarWhite = Color(0xCCFFFFFF)
+
 
 

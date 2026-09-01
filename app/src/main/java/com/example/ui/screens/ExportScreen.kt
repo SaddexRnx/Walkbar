@@ -7,7 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,21 +36,21 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
@@ -73,17 +71,14 @@ import com.example.characters.CharacterRegistry
 import com.example.characters.CharacterRenderer
 import com.example.model.CharacterOverlayConfig
 import com.example.model.ExportState
-import com.example.ui.theme.AccentCyan
+import com.example.ui.theme.AccentGold
 import com.example.ui.theme.AccentGreen
-import com.example.ui.theme.AccentIndigo
-import com.example.ui.theme.AccentIndigoActive
-import com.example.ui.theme.AccentIndigoLight
-import com.example.ui.theme.AccentIndigoMuted
+import com.example.ui.theme.AccentPrimary
+import com.example.ui.theme.AccentPrimaryActive
+import com.example.ui.theme.AccentPrimaryLight
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkBorderSubtle
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceCard
 import com.example.ui.theme.DarkSurfaceElevated
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -103,6 +98,8 @@ fun ExportScreen(
     CharacterRegistry.getById(overlayConfig.characterId)
   }
 
+  val renderStartTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+
   Box(
     contentAlignment = Alignment.Center,
     modifier = modifier
@@ -117,7 +114,7 @@ fun ExportScreen(
           verticalArrangement = Arrangement.Center
         ) {
           CircularProgressIndicator(
-            color = AccentIndigo,
+            color = AccentPrimary,
             strokeWidth = 4.dp,
             modifier = Modifier.size(56.dp)
           )
@@ -144,6 +141,22 @@ fun ExportScreen(
         val totalFrames = if (exportState is ExportState.Rendering) exportState.totalFrames else 0
         val statusText = if (exportState is ExportState.Rendering) exportState.statusMessage else "Finalizing MP4 container & saving..."
 
+        // Calculate ETA
+        val elapsedMs = System.currentTimeMillis() - renderStartTime.longValue
+        val etaText = if (progress > 0.05f && progress < 0.98f && elapsedMs > 1000) {
+          val totalEstimatedMs = elapsedMs / progress
+          val remainingSec = ((totalEstimatedMs - elapsedMs) / 1000).toInt().coerceAtLeast(1)
+          if (remainingSec > 60) {
+            "ETA: ~${remainingSec / 60}m ${remainingSec % 60}s remaining"
+          } else {
+            "ETA: ~${remainingSec}s remaining"
+          }
+        } else if (progress >= 0.98f) {
+          "Finishing up..."
+        } else {
+          "Estimating time..."
+        }
+
         Column(
           horizontalAlignment = Alignment.CenterHorizontally,
           modifier = Modifier
@@ -161,13 +174,13 @@ fun ExportScreen(
           Spacer(modifier = Modifier.height(8.dp))
 
           Text(
-            text = "Single-pass quality-preserving compositing in progress",
+            text = "Hardware accelerated rendering in progress",
             fontSize = 13.sp,
             color = TextSecondary,
             textAlign = TextAlign.Center
           )
 
-          Spacer(modifier = Modifier.height(36.dp))
+          Spacer(modifier = Modifier.height(32.dp))
 
           // Sleek Circular percentage indicator
           Box(
@@ -176,7 +189,7 @@ fun ExportScreen(
           ) {
             CircularProgressIndicator(
               progress = { progress },
-              color = AccentIndigo,
+              color = AccentPrimary,
               trackColor = DarkBorder,
               strokeWidth = 8.dp,
               modifier = Modifier.fillMaxSize()
@@ -198,10 +211,17 @@ fun ExportScreen(
                   color = TextMuted
                 )
               }
+              Spacer(modifier = Modifier.height(2.dp))
+              Text(
+                text = etaText,
+                fontSize = 10.sp,
+                color = AccentGold,
+                fontWeight = FontWeight.SemiBold
+              )
             }
           }
 
-          Spacer(modifier = Modifier.height(32.dp))
+          Spacer(modifier = Modifier.height(28.dp))
 
           // Animated Walking Character along Progress Line
           Surface(
@@ -222,14 +242,14 @@ fun ExportScreen(
 
               // Draw track line
               drawLine(
-                color = Color(0xFF27272A),
+                color = Color(0xFF2C2C36),
                 start = androidx.compose.ui.geometry.Offset(w * 0.08f, charY + 2f),
                 end = androidx.compose.ui.geometry.Offset(w * 0.92f, charY + 2f),
                 strokeWidth = 3f
               )
               // Draw active progress line
               drawLine(
-                color = AccentIndigo,
+                color = AccentPrimary,
                 start = androidx.compose.ui.geometry.Offset(w * 0.08f, charY + 2f),
                 end = androidx.compose.ui.geometry.Offset(charX, charY + 2f),
                 strokeWidth = 4f
@@ -251,7 +271,7 @@ fun ExportScreen(
             }
           }
 
-          Spacer(modifier = Modifier.height(20.dp))
+          Spacer(modifier = Modifier.height(18.dp))
 
           Text(
             text = statusText,
@@ -260,13 +280,13 @@ fun ExportScreen(
             textAlign = TextAlign.Center
           )
 
-          Spacer(modifier = Modifier.height(32.dp))
+          Spacer(modifier = Modifier.height(28.dp))
 
           OutlinedButton(
             onClick = onCancelClicked,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
             border = BorderStroke(1.dp, Color(0xFF7F1D1D)),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier
               .fillMaxWidth(0.6f)
               .height(44.dp)
@@ -329,9 +349,9 @@ fun ExportScreen(
             modifier = Modifier
               .fillMaxWidth()
               .height(280.dp)
-              .shadow(20.dp, RoundedCornerShape(24.dp))
-              .clip(RoundedCornerShape(24.dp))
-              .border(1.dp, DarkBorderSubtle, RoundedCornerShape(24.dp))
+              .shadow(20.dp, RoundedCornerShape(20.dp))
+              .clip(RoundedCornerShape(20.dp))
+              .border(1.dp, DarkBorderSubtle, RoundedCornerShape(20.dp))
               .background(Color.Black)
           )
 
@@ -340,7 +360,7 @@ fun ExportScreen(
           // File Info Chip
           Surface(
             color = DarkSurfaceElevated,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             border = BorderStroke(1.dp, DarkBorder),
             modifier = Modifier.fillMaxWidth()
           ) {
@@ -368,34 +388,40 @@ fun ExportScreen(
           Spacer(modifier = Modifier.height(20.dp))
 
           // Share Button
-          Button(
+          Surface(
             onClick = {
               shareVideo(context, exportState.outputUri)
             },
-            colors = ButtonDefaults.buttonColors(
-              containerColor = AccentIndigo,
-              contentColor = Color.White
-            ),
             shape = RoundedCornerShape(18.dp),
+            color = Color.Transparent,
             modifier = Modifier
               .fillMaxWidth()
               .height(52.dp)
-              .shadow(12.dp, RoundedCornerShape(18.dp), spotColor = AccentIndigo)
+              .shadow(16.dp, RoundedCornerShape(18.dp), spotColor = AccentPrimary)
               .testTag("share_video_button")
           ) {
-            Icon(
-              imageVector = Icons.Default.Share,
-              contentDescription = null,
-              tint = Color.White,
-              modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-              text = "Share Video to Social Apps",
-              fontSize = 15.sp,
-              fontWeight = FontWeight.Bold,
-              color = Color.White
-            )
+            Box(
+              contentAlignment = Alignment.Center,
+              modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.linearGradient(listOf(AccentPrimary, AccentPrimaryActive)))
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                  imageVector = Icons.Default.Share,
+                  contentDescription = null,
+                  tint = Color.White,
+                  modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                  text = "Share Video to Social Apps",
+                  fontSize = 15.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = Color.White
+                )
+              }
+            }
           }
 
           Spacer(modifier = Modifier.height(10.dp))
@@ -464,13 +490,14 @@ fun ExportScreen(
           Button(
             onClick = onRetryClicked,
             colors = ButtonDefaults.buttonColors(
-              containerColor = AccentIndigo,
+              containerColor = AccentPrimary,
               contentColor = Color.White
             ),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
               .fillMaxWidth()
               .height(48.dp)
+              .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = AccentPrimary)
               .testTag("retry_export_button")
           ) {
             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -551,4 +578,3 @@ private fun shareVideo(context: Context, videoUri: Uri) {
     e.printStackTrace()
   }
 }
-

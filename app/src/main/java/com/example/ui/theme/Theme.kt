@@ -1,22 +1,16 @@
 package com.example.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
 private val WalkbarDarkColorScheme = darkColorScheme(
-  primary = AccentIndigo,
+  primary = AccentPrimary,
   onPrimary = Color.White,
-  primaryContainer = AccentIndigoMuted,
-  onPrimaryContainer = AccentIndigoLight,
-  secondary = AccentAmber,
+  primaryContainer = AccentPrimaryMuted,
+  onPrimaryContainer = AccentPrimaryLight,
+  secondary = AccentGold,
   onSecondary = Color.Black,
   secondaryContainer = DarkSurfaceCard,
   onSecondaryContainer = TextPrimary,
@@ -33,17 +27,16 @@ private val WalkbarDarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun MyApplicationTheme(
+fun WalkbarTheme(
   darkTheme: Boolean = true,
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
-  val colorScheme = WalkbarDarkColorScheme
-
   MaterialTheme(
-    colorScheme = colorScheme,
+    colorScheme = WalkbarDarkColorScheme,
     typography = Typography,
     content = content
   )
 }
+
 
