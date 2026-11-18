@@ -4,6 +4,10 @@ An Android app that places animated character companions along a video's progres
 
 Pick a character, choose where it should walk on the bar, and export the result as a video. Both pixel art and 3D style characters are supported.
 
+## About
+
+This is an experiment I started after seeing those walking-character overlays on short videos. I wanted to build the tool myself and make the character follow the real timeline instead of just looping. It's a work in progress. I'm Saddek, a developer in Algeria. See more at [saddexrnx.github.io](https://saddexrnx.github.io) or find me on [Telegram](https://t.me/Saddex_x).
+
 ## What it does
 
 - A library of characters loaded from a manifest, with a picker in the editor
